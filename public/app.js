@@ -270,9 +270,13 @@
       if (!input) {
         return;
       }
-      postJson('/api/register/suggest', { turnstileToken: '' })
+      if (!currentSession) {
+        input.value = '';
+        return;
+      }
+      postJson('/api/user/codewords/suggest', { sessionToken: currentSession.sessionToken })
         .then((data) => {
-          input.value = data.username.replace('-', '_');
+          input.value = data.codeword || '';
         })
         .catch(() => {
           input.value = '';
@@ -369,6 +373,7 @@
           applyAdminDashboard(data);
         } else {
           applyUserDashboard(data);
+          refreshUserCodeword();
         }
         setMessage(loginFeedback, 'Logged in.', 'success');
       } catch (error) {
@@ -397,6 +402,7 @@
           applyAdminDashboard(data);
         } else {
           applyUserDashboard(data);
+          refreshUserCodeword();
         }
         setMessage(loginFeedback, 'Logged in.', 'success');
       } catch (error) {
