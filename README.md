@@ -1,12 +1,12 @@
 # pingme.help
 
-Privacy-first readiness sharing service built with Node.js, vanilla JavaScript, SQLCipher-backed SQLite, NGINX, and PM2.
+Privacy-first readiness sharing service with role-based flows for admin, users, and follower "pingers".
 
 ## File structure
 
 - `.env.example` - environment template
 - `server.js` - boot entrypoint with safe startup failure handling
-- `lib/` - configuration, security, database, page rendering, and HTTP app logic
+- `lib/` - configuration, security, database, username/codeword generation, page rendering, and HTTP app logic
 - `public/` - mobile-first CSS and browser JavaScript
 - `deploy/nginx/pingme.help.conf` - NGINX reverse proxy with access logging disabled
 - `ecosystem.config.cjs` - PM2 process definition
@@ -70,5 +70,11 @@ pm2 save
 ## Notes
 
 - `GET /readyz` returns the live readiness payload with the current ISO timestamp.
-- The backend strips common IP forwarding headers, does not use request logging middleware, and relies on Cloudflare Turnstile for state-changing requests.
+- Homepage tabs: Send a Ping, Register, Login, and Check a Ping.
+- User registration uses auto-generated verb-noun usernames and generates an initial adjective-noun follower codeword.
+- User/admin login supports optional email 2FA; user password reset is email-based.
+- Admin dashboard exposes total user count and SMTP settings.
+- Users can create multiple codewords, disable individual codewords, invite others, and delete their own accounts.
+- Follower access ("Check a Ping") is codeword-gated and burn messages are single-view.
+- The backend strips common IP forwarding headers, does not use request logging middleware, and relies on Cloudflare Turnstile on non-logged-in forms.
 - Database boot fails safely when `DB_ENCRYPTION_KEY` is missing or unusable.

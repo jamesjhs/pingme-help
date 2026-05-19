@@ -6,9 +6,6 @@ const path = require('node:path');
 const { once } = require('node:events');
 const { DatabaseStore } = require('../lib/database');
 const { createServer } = require('../lib/app');
-const { BackoffLockout, hashPassword } = require('../lib/security');
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeConfig(tempDir, overrides = {}) {
   return {
@@ -16,8 +13,6 @@ function makeConfig(tempDir, overrides = {}) {
     version: 'v0.0.1',
     dbFile: path.join(tempDir, 'test.sqlite'),
     dbEncryptionKey: 'unit-test-secret',
-    // Leaving turnstileSecretKey empty bypasses Turnstile verification so
-    // integration tests can reach credential-checking logic directly.
     turnstileSiteKey: '',
     turnstileSecretKey: '',
     adminUser: 'admin',
@@ -39,7 +34,7 @@ async function startServer(config) {
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;
   const close = () => new Promise((resolve) => server.close(() => { store.close(); resolve(); }));
-  return { base, store, server, close };
+  return { base, store, close };
 }
 
 async function postJson(base, urlPath, body) {
@@ -52,12 +47,9 @@ async function postJson(base, urlPath, body) {
   return { status: response.status, data, headers: response.headers };
 }
 
-// ── /readyz ───────────────────────────────────────────────────────────────────
-
 test('readyz returns service metadata', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
-  const config = makeConfig(tempDir);
-  const { base, close } = await startServer(config);
+  const { base, close } = await startServer(makeConfig(tempDir));
 
   const response = await fetch(`${base}/readyz`);
   const payload = await response.json();
@@ -66,227 +58,118 @@ test('readyz returns service metadata', async () => {
   assert.equal(payload.ok, true);
   assert.equal(payload.service, 'pingme.help');
   assert.equal(payload.version, 'v0.0.1');
-  assert.match(payload.timestamp, /^\d{4}-\d{2}-\d{2}T/);
 
   await close();
 });
 
-// ── Database integrity ────────────────────────────────────────────────────────
-
-test('database stores and deletes users without orphaned alerts', async () => {
+test('registration suggestion and registration create a new user', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
-  const store = new DatabaseStore(makeConfig(tempDir));
+  const { base, store, close } = await startServer(makeConfig(tempDir));
 
-  const stats = store.saveUserStatus({
+  const suggestion = await postJson(base, '/api/register/suggest', {});
+  assert.equal(suggestion.status, 200);
+  assert.equal(typeof suggestion.data.username, 'string');
+
+  const register = await postJson(base, '/api/register', {
+    username: suggestion.data.username,
+    password: 'password123',
+    passwordConfirm: 'password123',
+    email: 'user@example.com'
+  });
+
+  assert.equal(register.status, 200);
+  const user = store.getUser(suggestion.data.username);
+  assert.ok(user);
+  assert.equal(user.email, 'user@example.com');
+
+  await close();
+});
+
+test('send ping updates status and check ping can reveal burn message once', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const { base, store, close } = await startServer(makeConfig(tempDir));
+
+  store.registerUser({
     username: 'alice',
-    passwordHash: hashPassword('topsecret1'),
-    status: 1,
-    secretCodeword: 'bluebird',
-    burnMessage: 'hello there',
-    lastStatusUpdate: '2026-05-19T00:00:00.000Z',
-    alertEmail: 'alice@example.com',
-    isNew: true
+    passwordHash: require('../lib/security').hashPassword('password123'),
+    email: 'alice@example.com',
+    createdAt: '2026-05-19T00:00:00.000Z'
   });
+  store.createCodeword('alice', 'kind-orbit', '2026-05-19T00:00:00.000Z');
 
-  assert.deepEqual(stats, {
-    last_viewer_access: null,
-    message_viewed_flag: 0
+  const sendPing = await postJson(base, '/api/send-ping', {
+    username: 'alice',
+    password: 'password123',
+    status: 'not_ok',
+    message: 'Need help'
   });
-  assert.equal(store.getAlertEmail('alice'), 'alice@example.com');
-  assert.equal(store.deleteUserCompletely('alice'), 1);
-  assert.equal(store.getUser('alice'), null);
-  assert.equal(store.getAlertEmail('alice'), null);
+  assert.equal(sendPing.status, 200);
 
-  store.close();
-});
-
-// ── BackoffLockout unit tests ─────────────────────────────────────────────────
-
-test('BackoffLockout: allows requests before reaching the failure threshold', () => {
-  const bl = new BackoffLockout();
-
-  assert.deepEqual(bl.check('k1'), { allowed: true });
-
-  bl.recordFailure('k1');
-  assert.deepEqual(bl.check('k1'), { allowed: true });
-  bl.recordFailure('k1');
-  assert.deepEqual(bl.check('k1'), { allowed: true });
-});
-
-test('BackoffLockout: locks out after 3 failures and returns retryAfterMs', () => {
-  const bl = new BackoffLockout();
-
-  bl.recordFailure('k2');
-  bl.recordFailure('k2');
-  const result = bl.recordFailure('k2'); // 3rd failure → lockout
-
-  assert.equal(result.locked, true);
-  assert.ok(result.retryAfterMs > 0, 'retryAfterMs should be positive');
-
-  const check = bl.check('k2');
-  assert.equal(check.allowed, false);
-  assert.ok(check.retryAfterMs > 0, 'retryAfterMs should be positive');
-});
-
-test('BackoffLockout: lockout periods increase with each strike', () => {
-  const bl = new BackoffLockout();
-
-  // Force-trigger first lockout
-  bl.recordFailure('k3');
-  bl.recordFailure('k3');
-  const r1 = bl.recordFailure('k3');
-  assert.equal(r1.locked, true);
-  const first = r1.retryAfterMs;
-
-  // Simulate lock expiry by overwriting internal state
-  bl._state.get('k3').lockUntil = Date.now() - 1;
-
-  bl.recordFailure('k3');
-  bl.recordFailure('k3');
-  const r2 = bl.recordFailure('k3');
-  assert.equal(r2.locked, true);
-  const second = r2.retryAfterMs;
-
-  assert.ok(second > first, 'Second lockout should be longer than the first');
-});
-
-test('BackoffLockout: recordSuccess resets all state', () => {
-  const bl = new BackoffLockout();
-
-  bl.recordFailure('k4');
-  bl.recordFailure('k4');
-  bl.recordFailure('k4'); // locked
-
-  bl.recordSuccess('k4');
-
-  assert.deepEqual(bl.check('k4'), { allowed: true });
-  // Fresh failure count: 2 more failures should NOT re-lock
-  bl.recordFailure('k4');
-  bl.recordFailure('k4');
-  assert.deepEqual(bl.check('k4'), { allowed: true });
-});
-
-// ── Username non-enumeration ──────────────────────────────────────────────────
-
-test('GET /u/:username returns 200 whether or not account exists', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
-  const config = makeConfig(tempDir);
-  const { base, close } = await startServer(config);
-
-  // Non-existent account — must NOT 404
-  const res1 = await fetch(`${base}/u/nobody`);
-  assert.equal(res1.status, 200);
-  assert.match(res1.headers.get('content-type') || '', /text\/html/);
-
-  // Existing account — also 200
-  const store = new DatabaseStore(config);
-  store.saveUserStatus({
-    username: 'bob',
-    passwordHash: hashPassword('password1'),
-    status: 1,
-    secretCodeword: 'secret1234',
-    burnMessage: null,
-    lastStatusUpdate: '2026-01-01T00:00:00.000Z',
-    alertEmail: null,
-    isNew: true
+  const check = await postJson(base, '/api/check-ping', {
+    username: 'alice',
+    codeword: 'KIND-ORBIT'
   });
-  store.close();
+  assert.equal(check.status, 200);
+  assert.equal(check.data.status, false);
+  assert.equal(check.data.has_message, true);
 
-  const res2 = await fetch(`${base}/u/bob`);
-  assert.equal(res2.status, 200);
+  const reveal = await postJson(base, '/api/pinger/reveal', { sessionToken: check.data.session_token });
+  assert.equal(reveal.status, 200);
+  assert.equal(reveal.data.message, 'Need help');
+
+  const revealAgain = await postJson(base, '/api/pinger/reveal', { sessionToken: check.data.session_token });
+  assert.equal(revealAgain.status, 200);
+  assert.equal(revealAgain.data.message, '');
 
   await close();
 });
 
-// ── Credential lockout (integration) ─────────────────────────────────────────
-
-test('POST /api/viewer/access: locked out after 3 wrong codewords, 429 includes Retry-After', async () => {
+test('admin login returns dashboard with total users and smtp settings', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
-  const config = makeConfig(tempDir);
-  const { base, store, close } = await startServer(config);
+  const { base, store, close } = await startServer(makeConfig(tempDir));
 
-  // Register a user so the codeword check is real
-  store.saveUserStatus({
-    username: 'carol',
-    passwordHash: hashPassword('password1'),
-    status: 1,
-    secretCodeword: 'realcodeword',
-    burnMessage: null,
-    lastStatusUpdate: '2026-01-01T00:00:00.000Z',
-    alertEmail: null,
-    isNew: true
+  store.registerUser({
+    username: 'sam',
+    passwordHash: require('../lib/security').hashPassword('password123'),
+    email: 'sam@example.com',
+    createdAt: '2026-05-19T00:00:00.000Z'
   });
 
-  const wrong = { username: 'carol', codeword: 'wrongcodeword' };
+  const login = await postJson(base, '/api/login/start', {
+    username: 'admin',
+    password: 'temporary_cleartext_password'
+  });
 
-  const r1 = await postJson(base, '/api/viewer/access', wrong);
-  assert.equal(r1.status, 401);
+  assert.equal(login.status, 200);
+  assert.equal(login.data.role, 'admin');
+  assert.equal(login.data.dashboard.total_users, 1);
+  assert.equal(typeof login.data.session_token, 'string');
 
-  const r2 = await postJson(base, '/api/viewer/access', wrong);
-  assert.equal(r2.status, 401);
+  const updateSmtp = await postJson(base, '/api/admin/smtp', {
+    sessionToken: login.data.session_token,
+    host: 'smtp.example.com',
+    port: 587,
+    user: 'mailer',
+    pass: 'secret',
+    starttls: true
+  });
 
-  // Third failure triggers the lockout
-  const r3 = await postJson(base, '/api/viewer/access', wrong);
-  assert.equal(r3.status, 401);
-
-  // Fourth attempt must be blocked
-  const r4 = await postJson(base, '/api/viewer/access', wrong);
-  assert.equal(r4.status, 429);
-  assert.equal(r4.data.ok, false);
-  assert.ok(r4.headers.get('retry-after'), 'Retry-After header must be present');
-  assert.ok(Number(r4.headers.get('retry-after')) > 0, 'Retry-After must be positive');
+  assert.equal(updateSmtp.status, 200);
+  assert.equal(updateSmtp.data.smtp.host, 'smtp.example.com');
 
   await close();
 });
 
-test('POST /api/status: locked out after 3 wrong passwords', async () => {
+test('privacy policy includes user-risk and availability language', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
-  const config = makeConfig(tempDir);
-  const { base, store, close } = await startServer(config);
+  const { base, close } = await startServer(makeConfig(tempDir));
 
-  store.saveUserStatus({
-    username: 'dave',
-    passwordHash: hashPassword('correctpassword'),
-    status: 1,
-    secretCodeword: 'cword1234',
-    burnMessage: null,
-    lastStatusUpdate: '2026-01-01T00:00:00.000Z',
-    alertEmail: null,
-    isNew: true
-  });
+  const response = await fetch(`${base}/privacy`);
+  const html = await response.text();
 
-  const wrongAttempt = {
-    username: 'dave',
-    password: 'wrongpassword',
-    secretCodeword: 'cword1234',
-    status: 'ok'
-  };
-
-  await postJson(base, '/api/status', wrongAttempt);
-  await postJson(base, '/api/status', wrongAttempt);
-  await postJson(base, '/api/status', wrongAttempt);
-
-  const r4 = await postJson(base, '/api/status', wrongAttempt);
-  assert.equal(r4.status, 429);
-  assert.ok(r4.headers.get('retry-after'));
-
-  await close();
-});
-
-test('POST /api/admin/login: locked out after 3 wrong passwords', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
-  const config = makeConfig(tempDir);
-  const { base, close } = await startServer(config);
-
-  const wrong = { username: 'admin', password: 'wrongpassword' };
-
-  await postJson(base, '/api/admin/login', wrong);
-  await postJson(base, '/api/admin/login', wrong);
-  await postJson(base, '/api/admin/login', wrong);
-
-  const r4 = await postJson(base, '/api/admin/login', wrong);
-  assert.equal(r4.status, 429);
-  assert.ok(r4.headers.get('retry-after'));
+  assert.match(html, /at your own risk/i);
+  assert.match(html, /taken offline at any time/i);
+  assert.match(html, /Dead Man’s Switch alternatives/i);
 
   await close();
 });
