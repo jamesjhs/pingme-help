@@ -208,8 +208,7 @@
       try {
         const data = await postJson('/api/viewer/reveal', {
           username: viewerUsername,
-          codeword: viewerSession.codeword,
-          turnstileToken: tokenFor(accessForm)
+          codeword: viewerSession.codeword
         });
         revealedMessage.textContent = data.message || 'This message has already been cleared.';
         show(revealedMessage, true);
@@ -231,8 +230,7 @@
       try {
         const data = await postJson('/api/viewer/acknowledge', {
           username: viewerUsername,
-          codeword: viewerSession.codeword,
-          turnstileToken: tokenFor(accessForm)
+          codeword: viewerSession.codeword
         });
         acknowledgeButton.disabled = true;
         setMessage(feedback, data.mailed ? 'Acknowledgement sent.' : 'Acknowledged. No alert email was configured.', 'success');
@@ -256,8 +254,10 @@
       setMessage(feedback, 'Signing in…');
       try {
         const payload = formPayload(loginForm);
+        payload.turnstileToken = tokenFor(loginForm);
         const data = await postJson('/api/admin/login', payload);
         adminSession = payload;
+        resetTurnstile(loginForm);
         if (data.reset_required) {
           show(resetForm, true);
           show(dashboard, false);
@@ -269,6 +269,7 @@
         show(resetForm, false);
         setMessage(feedback, 'Signed in.', 'success');
       } catch (error) {
+        resetTurnstile(loginForm);
         setMessage(feedback, error.message, 'error');
       }
     });
