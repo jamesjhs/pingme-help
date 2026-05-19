@@ -1,0 +1,27 @@
+{
+  "name": "pingme-help",
+  "version": "0.0.1",
+  "description": "Zero-bloat privacy-first status service for pingme.help",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "audit": "npm audit --omit=dev"
+  },
+  "keywords": [
+    "privacy",
+    "status",
+    "sqlite",
+    "turnstile"
+  ],
+  "author": "GitHub Copilot",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3-multiple-ciphers": "^12.9.0",
+    "dotenv": "^17.4.2",
+    "nodemailer": "^8.0.7"
+  }
+}
