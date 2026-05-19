@@ -22,6 +22,22 @@
     element.classList.toggle('hidden', !shouldShow);
   }
 
+  function scrollIntoView(element) {
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  /**
+   * Disable (busy=true) or re-enable (busy=false) every button inside a form.
+   * Used to prevent double-submission while an async request is in flight.
+   */
+  function setBusy(form, busy) {
+    form.querySelectorAll('button').forEach((btn) => {
+      btn.disabled = busy;
+    });
+  }
+
   function formPayload(form) {
     return Object.fromEntries(new FormData(form).entries());
   }
@@ -119,11 +135,33 @@
     const deleteFeedback = document.getElementById('delete-feedback');
     const privateStats = document.getElementById('private-stats');
 
+    // Character counter for the burn message textarea
+    const burnInput = document.getElementById('burn-message-input');
+    const burnCharCount = document.getElementById('burn-char-count');
+    const BURN_MAX = 100;
+    if (burnInput && burnCharCount) {
+      burnInput.addEventListener('input', () => {
+        const remaining = BURN_MAX - burnInput.value.length;
+        burnCharCount.textContent = remaining + ' characters remaining';
+        burnCharCount.classList.toggle('near-limit', remaining <= 20);
+      });
+    }
+
+    // Delete form: confirmation checkbox gates the submit button
+    const deleteConfirmCheck = document.getElementById('delete-confirm-check');
+    const deleteSubmitBtn = document.getElementById('delete-submit-btn');
+    if (deleteConfirmCheck && deleteSubmitBtn) {
+      deleteConfirmCheck.addEventListener('change', () => {
+        deleteSubmitBtn.disabled = !deleteConfirmCheck.checked;
+      });
+    }
+
     document.querySelectorAll('[data-status-value]').forEach((button) => {
       button.addEventListener('click', async () => {
         const status = button.dataset.statusValue;
         statusForm.elements.status.value = status;
-        setMessage(statusFeedback, 'Submitting…');
+        setMessage(statusFeedback, 'Submitting\u2026');
+        setBusy(statusForm, true);
 
         try {
           const payload = formPayload(statusForm);
@@ -133,11 +171,17 @@
           privateStats.querySelector('[data-stat="lastViewerAccess"]').textContent = stats.last_viewer_access;
           privateStats.querySelector('[data-stat="messageViewedFlag"]').textContent = stats.message_viewed_flag ? 'Viewed' : 'Not viewed';
           show(privateStats, true);
+          scrollIntoView(privateStats);
           setMessage(statusFeedback, 'Status saved.', 'success');
           statusForm.reset();
+          if (burnCharCount) {
+            burnCharCount.textContent = BURN_MAX + ' characters remaining';
+            burnCharCount.classList.remove('near-limit');
+          }
         } catch (error) {
           setMessage(statusFeedback, error.message, 'error');
         } finally {
+          setBusy(statusForm, false);
           resetTurnstile(statusForm);
         }
       });
@@ -145,7 +189,8 @@
 
     deleteForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-      setMessage(deleteFeedback, 'Deleting…');
+      setMessage(deleteFeedback, 'Deleting\u2026');
+      setBusy(deleteForm, true);
       try {
         const payload = formPayload(deleteForm);
         payload.turnstileToken = tokenFor(deleteForm);
@@ -156,6 +201,11 @@
       } catch (error) {
         setMessage(deleteFeedback, error.message, 'error');
       } finally {
+        setBusy(deleteForm, false);
+        // Keep the submit button disabled — checkbox was reset by form.reset()
+        if (deleteSubmitBtn) {
+          deleteSubmitBtn.disabled = !(deleteConfirmCheck && deleteConfirmCheck.checked);
+        }
         resetTurnstile(deleteForm);
       }
     });
@@ -173,17 +223,19 @@
 
     accessForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-      setMessage(feedback, 'Checking codeword…');
+      setMessage(feedback, 'Checking codeword\u2026');
+      setBusy(accessForm, true);
       try {
         const payload = formPayload(accessForm);
         payload.username = viewerUsername;
         payload.turnstileToken = tokenFor(accessForm);
         const data = await postJson('/api/viewer/access', payload);
         viewerSession = { codeword: payload.codeword };
-        statusPill.textContent = data.status ? '🟢 I’m OK' : '🔴 I’m Not OK';
+        statusPill.textContent = data.status ? '\uD83D\uDFE2 OK' : '\uD83D\uDD34 Not OK';
         statusPill.dataset.state = data.status ? 'ok' : 'not-ok';
         lastUpdated.textContent = data.last_status_update;
         show(result, true);
+        scrollIntoView(result);
         show(revealButton, data.has_message);
         show(revealedMessage, false);
         show(acknowledgeButton, false);
@@ -195,6 +247,7 @@
       } catch (error) {
         setMessage(feedback, error.message, 'error');
       } finally {
+        setBusy(accessForm, false);
         resetTurnstile(accessForm);
       }
     });
@@ -204,7 +257,8 @@
         setMessage(feedback, 'Unlock the page first.', 'error');
         return;
       }
-      setMessage(feedback, 'Revealing message…');
+      setMessage(feedback, 'Revealing message\u2026');
+      revealButton.disabled = true;
       try {
         const data = await postJson('/api/viewer/reveal', {
           username: viewerUsername,
@@ -214,11 +268,11 @@
         show(revealedMessage, true);
         show(revealButton, false);
         show(acknowledgeButton, true);
+        scrollIntoView(acknowledgeButton);
         setMessage(feedback, 'Message opened. It has now been removed from the server.', 'success');
       } catch (error) {
+        revealButton.disabled = false;
         setMessage(feedback, error.message, 'error');
-      } finally {
-        resetTurnstile(accessForm);
       }
     });
 
@@ -226,18 +280,17 @@
       if (!viewerSession) {
         return;
       }
-      setMessage(feedback, 'Sending acknowledgement…');
+      setMessage(feedback, 'Sending acknowledgement\u2026');
+      acknowledgeButton.disabled = true;
       try {
         const data = await postJson('/api/viewer/acknowledge', {
           username: viewerUsername,
           codeword: viewerSession.codeword
         });
-        acknowledgeButton.disabled = true;
         setMessage(feedback, data.mailed ? 'Acknowledgement sent.' : 'Acknowledged. No alert email was configured.', 'success');
       } catch (error) {
+        acknowledgeButton.disabled = false;
         setMessage(feedback, error.message, 'error');
-      } finally {
-        resetTurnstile(accessForm);
       }
     });
   }
@@ -251,7 +304,8 @@
 
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-      setMessage(feedback, 'Signing in…');
+      setMessage(feedback, 'Signing in\u2026');
+      setBusy(loginForm, true);
       try {
         const payload = formPayload(loginForm);
         payload.turnstileToken = tokenFor(loginForm);
@@ -261,16 +315,20 @@
         if (data.reset_required) {
           show(resetForm, true);
           show(dashboard, false);
+          scrollIntoView(resetForm);
           setMessage(feedback, 'First login detected. Set a new admin password now.', 'success');
           return;
         }
         totalUsers.textContent = String(data.total_users);
         show(dashboard, true);
         show(resetForm, false);
+        scrollIntoView(dashboard);
         setMessage(feedback, 'Signed in.', 'success');
       } catch (error) {
         resetTurnstile(loginForm);
         setMessage(feedback, error.message, 'error');
+      } finally {
+        setBusy(loginForm, false);
       }
     });
 
@@ -280,7 +338,8 @@
         setMessage(feedback, 'Sign in first.', 'error');
         return;
       }
-      setMessage(feedback, 'Saving new admin password…');
+      setMessage(feedback, 'Saving new admin password\u2026');
+      setBusy(resetForm, true);
       try {
         const payload = formPayload(resetForm);
         payload.username = adminSession.username;
@@ -291,10 +350,12 @@
         show(dashboard, true);
         show(resetForm, false);
         resetForm.reset();
+        scrollIntoView(dashboard);
         setMessage(feedback, 'Admin password updated.', 'success');
       } catch (error) {
         setMessage(feedback, error.message, 'error');
       } finally {
+        setBusy(resetForm, false);
         resetTurnstile(resetForm);
       }
     });
