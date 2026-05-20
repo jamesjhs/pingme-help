@@ -601,8 +601,10 @@ function createServer({ config, store }) {
         if (!(await requireTurnstile())) {
           return;
         }
-        const username = normalizeUsername(payload.username);
-        const lockState = lockout.check('auth:' + username);
+        const loginEmail = normalizeEmail(payload.email);
+        const inputUsername = loginEmail ? '' : normalizeUsername(payload.username);
+        const lockoutKey = 'auth:' + (loginEmail || inputUsername);
+        const lockState = lockout.check(lockoutKey);
         if (!lockState.allowed) {
           sendTooManyRequests(response, lockState.retryAfterMs);
           return;
@@ -611,14 +613,15 @@ function createServer({ config, store }) {
         const password = normalizePassword(payload.password);
         const burnMessage = sanitizeMessage(payload.message);
         const status = payload.status === 'not_ok' ? 0 : 1;
-        const user = store.getUser(username);
+        const user = loginEmail ? store.getUserByEmail(loginEmail) : store.getUser(inputUsername);
         if (!user || !verifyPassword(password, user.password_hash)) {
-          lockout.recordFailure('auth:' + username);
+          lockout.recordFailure(lockoutKey);
           sendJson(response, 401, { ok: false, error: 'Invalid credentials' });
           return;
         }
 
-        lockout.recordSuccess('auth:' + username);
+        const username = normalizeUsername(user.username);
+        lockout.recordSuccess(lockoutKey);
         store.saveUserStatus({
           username,
           status,

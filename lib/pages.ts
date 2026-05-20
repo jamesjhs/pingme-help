@@ -81,7 +81,7 @@ function renderHomePage(siteKey) {
 
         <section id="send-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-send" hidden>
           <form id="send-ping-form" class="stack-form" novalidate>
-            <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
+            <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
             <label>
               <span>Burn Message <small>(optional)</small></span>

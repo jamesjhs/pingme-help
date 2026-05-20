@@ -183,7 +183,7 @@ test('send ping updates status and check ping can reveal burn message once', asy
   store.createCodeword('alice', 'kind-orbit', '2026-05-19T00:00:00.000Z');
 
   const sendPing = await postJson(base, '/api/send-ping', {
-    username: 'alice',
+    email: 'alice@example.com',
     password: 'password123',
     status: 'not_ok',
     message: 'Need help'
