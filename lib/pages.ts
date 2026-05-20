@@ -44,10 +44,12 @@ function renderHomePage(siteKey) {
     view: 'home',
     turnstileSiteKey: siteKey,
     content: `
-      <section class="hero card">
-        <p class="eyebrow">Stay connected without oversharing.</p>
-        <h1>Set your safety status and share it only with people you trust.</h1>
-        <p class="lede">PingMe helps you privately share an “I’m OK / I’m Not OK” update and a one-time burn message for selected followers.</p>
+      
+
+      <section class="card" id="site-verification">
+        <p class="eyebrow">Security verification</p>
+        <div id="turnstile-global-widget"></div>
+        <p id="turnstile-global-feedback" class="feedback" aria-live="polite"></p>
       </section>
 
       <section class="tabs card" aria-label="Homepage tabs">
@@ -72,7 +74,6 @@ function renderHomePage(siteKey) {
               <button class="status-button ok" type="button" data-status-value="ok">I&#39;m OK</button>
               <button class="status-button not-ok" type="button" data-status-value="not_ok">I&#39;m Not OK</button>
             </div>
-            <div class="turnstile-shell js-turnstile"></div>
           </form>
           <div id="send-ping-feedback" class="feedback" aria-live="polite"></div>
         </section>
@@ -87,7 +88,6 @@ function renderHomePage(siteKey) {
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
             <label><span>Confirm Password</span><input name="passwordConfirm" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
             <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
-            <div class="turnstile-shell js-turnstile"></div>
             <button class="primary-button" type="submit">Register</button>
           </form>
           <div id="register-feedback" class="feedback" aria-live="polite"></div>
@@ -97,25 +97,21 @@ function renderHomePage(siteKey) {
           <form id="login-form" class="stack-form" novalidate>
             <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
-            <div class="turnstile-shell js-turnstile"></div>
             <button class="primary-button" type="submit">Login</button>
           </form>
           <form id="login-2fa-form" class="stack-form hidden" novalidate>
             <label><span>Secret Code</span><input name="code" type="text" maxlength="6" required autocomplete="one-time-code" ${CA}></label>
             <input name="challengeId" type="hidden" value="">
-            <div class="turnstile-shell js-turnstile"></div>
             <button class="primary-button" type="submit">Verify 2FA</button>
           </form>
           <form id="password-reset-request-form" class="stack-form" novalidate>
             <label><span>Forgot password? Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
-            <div class="turnstile-shell js-turnstile"></div>
             <button class="primary-button" type="submit">Send Reset Code</button>
           </form>
           <form id="password-reset-confirm-form" class="stack-form hidden" novalidate>
             <input name="challengeId" type="hidden" value="">
             <label><span>Reset Code</span><input name="code" type="text" maxlength="6" required autocomplete="one-time-code" ${CA}></label>
             <label><span>New Password</span><input name="newPassword" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
-            <div class="turnstile-shell js-turnstile"></div>
             <button class="primary-button" type="submit">Reset Password</button>
           </form>
           <div id="login-feedback" class="feedback" aria-live="polite"></div>
@@ -125,7 +121,6 @@ function renderHomePage(siteKey) {
           <form id="check-ping-form" class="stack-form" novalidate>
             <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
             <label><span>Shared Codeword</span><input name="codeword" type="password" maxlength="64" required autocomplete="off" ${CA}></label>
-            <div class="turnstile-shell js-turnstile"></div>
             <button class="primary-button" type="submit">Check Status</button>
           </form>
           <div id="check-ping-feedback" class="feedback" aria-live="polite"></div>
