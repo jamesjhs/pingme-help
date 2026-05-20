@@ -660,8 +660,8 @@ function createServer({ config, store }) {
         if (!(await requireTurnstile())) {
           return;
         }
-        const username = normalizeUsername(payload.username);
-        const user = store.getUser(username);
+        const email = normalizeEmail(payload.email);
+        const user = email ? store.getUserByEmail(email) : null;
         if (!user || !user.email) {
           sendJson(response, 200, { ok: true });
           return;
@@ -670,7 +670,7 @@ function createServer({ config, store }) {
         const code = randomCode();
         const challengeId = randomId();
         resetChallenges.set(challengeId, {
-          username,
+          username: user.username,
           codeHash: hashPassword(code),
           expiresAt: Date.now() + 15 * 60 * 1000
         });

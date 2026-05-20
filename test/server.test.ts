@@ -243,6 +243,35 @@ test('user dashboard can resend email verification and change password', async (
   mailer.restore();
 });
 
+test('password reset request accepts email address without username', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const mailer = mockMailer();
+  const { base, store, close } = await startServer(makeConfig(tempDir, {
+    smtpHost: 'smtp.example.com',
+    smtpUser: 'mailer',
+    smtpPass: 'secret'
+  }));
+
+  store.registerUser({
+    username: 'jamie',
+    passwordHash: hashPassword('password123'),
+    email: 'jamie@example.com',
+    createdAt: '2026-05-19T00:00:00.000Z'
+  });
+
+  const requestReset = await postJson(base, '/api/password-reset/request', {
+    email: 'jamie@example.com'
+  });
+
+  assert.equal(requestReset.status, 200);
+  assert.equal(typeof requestReset.data.challenge_id, 'string');
+  assert.equal(mailer.sent.length, 1);
+  assert.match(mailer.sent[0].text, /reset code/i);
+
+  await close();
+  mailer.restore();
+});
+
 test('privacy policy includes user-risk and availability language', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
   const { base, close } = await startServer(makeConfig(tempDir));

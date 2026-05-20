@@ -122,8 +122,8 @@ function renderHomePage(siteKey) {
             <button class="primary-button" type="submit" data-public-action>Verify 2FA</button>
           </form>
           <form id="password-reset-request-form" class="stack-form" novalidate>
-            <label><span>Forgot password? Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
-            <button class="primary-button" type="submit" data-public-action>Send Reset Code</button>
+            <label><span>Forgot password? Email address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
+            <button class="primary-button" type="submit" data-public-action>Send Reset Email</button>
           </form>
           <form id="password-reset-confirm-form" class="stack-form hidden" novalidate>
             <input name="challengeId" type="hidden" value="">

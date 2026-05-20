@@ -87,6 +87,13 @@ class DatabaseStore {
         FROM users
         WHERE username = ?
       `),
+      getUserByEmail: this.db.prepare(`
+        SELECT username, password_hash, email, email_verified_at, email_verification_token_hash,
+               email_verification_expires_at, role, twofa_enabled, status, burn_message,
+               last_status_update, last_viewer_access, message_viewed_flag, created_at
+        FROM users
+        WHERE email = ?
+      `),
       registerUser: this.db.prepare(`
         INSERT INTO users (
           username, password_hash, email, email_verified_at, email_verification_token_hash,
@@ -188,6 +195,10 @@ class DatabaseStore {
 
   getUser(username) {
     return this.statements.getUser.get(username) || null;
+  }
+
+  getUserByEmail(email) {
+    return this.statements.getUserByEmail.get(email) || null;
   }
 
   registerUser({
