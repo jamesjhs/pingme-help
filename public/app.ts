@@ -1,7 +1,10 @@
+// @ts-nocheck
 (function () {
   const view = document.body.dataset.view;
   const siteKey = document.querySelector('meta[name="turnstile-site-key"]')?.content || '';
-  const widgetMap = new Map();
+  let turnstileWidgetId;
+  let turnstileSessionToken = '';
+  let turnstileSessionExpiresAt = 0;
   let currentSession = null;
   let pingerSession = null;
 
@@ -50,53 +53,94 @@
     return data;
   }
 
+  function isTurnstileSessionValid() {
+    if (!siteKey) {
+      return true;
+    }
+    return Boolean(turnstileSessionToken) && turnstileSessionExpiresAt > Date.now();
+  }
+
+  function attachTurnstileSession(payload) {
+    if (!siteKey) {
+      return payload;
+    }
+    if (!isTurnstileSessionValid()) {
+      throw new Error('Complete the verification once before submitting forms.');
+    }
+    return {
+      ...payload,
+      turnstileSessionToken
+    };
+  }
+
   function mountTurnstile() {
-    const shells = document.querySelectorAll('.js-turnstile');
-    if (!shells.length) {
+    const shell = document.getElementById('turnstile-global-widget');
+    const feedback = document.getElementById('turnstile-global-feedback');
+    if (!shell || !feedback) {
       return;
     }
 
     if (!siteKey) {
-      shells.forEach((shell) => {
-        shell.textContent = 'Turnstile is not configured on this server.';
-      });
+      setMessage(feedback, 'Turnstile is not configured on this server.');
       return;
     }
 
-    const renderWidgets = function () {
-      shells.forEach((shell) => {
-        const form = shell.closest('form');
-        if (!form || widgetMap.has(form)) {
-          return;
+    const renderWidget = function () {
+      if (turnstileWidgetId !== undefined) {
+        return;
+      }
+      turnstileWidgetId = window.turnstile.render(shell, {
+        sitekey: siteKey,
+        theme: 'light',
+        callback: async (token) => {
+          try {
+            const data = await postJson('/api/turnstile/session', { turnstileToken: token });
+            if (data.bypass) {
+              turnstileSessionToken = '';
+              turnstileSessionExpiresAt = Number.MAX_SAFE_INTEGER;
+              setMessage(feedback, 'Verification is bypassed for this environment.', 'success');
+              return;
+            }
+            turnstileSessionToken = data.turnstile_session_token;
+            turnstileSessionExpiresAt = Date.now() + Number(data.expires_in_ms || 0);
+            setMessage(feedback, 'Verification complete. You can now use all forms.', 'success');
+          } catch (error) {
+            turnstileSessionToken = '';
+            turnstileSessionExpiresAt = 0;
+            setMessage(feedback, error.message, 'error');
+          }
+        },
+        'expired-callback': () => {
+          turnstileSessionToken = '';
+          turnstileSessionExpiresAt = 0;
+          setMessage(feedback, 'Verification expired. Please verify again.', 'error');
+        },
+        'error-callback': () => {
+          turnstileSessionToken = '';
+          turnstileSessionExpiresAt = 0;
+          setMessage(feedback, 'Verification failed. Please retry.', 'error');
         }
-        const widgetId = window.turnstile.render(shell, {
-          sitekey: siteKey,
-          theme: 'light'
-        });
-        widgetMap.set(form, widgetId);
       });
+      setMessage(feedback, 'Complete verification once to unlock all forms.');
     };
 
     if (window.turnstile) {
-      renderWidgets();
+      renderWidget();
       return;
     }
 
-    window.addEventListener('load', renderWidgets, { once: true });
+    window.addEventListener('load', renderWidget, { once: true });
   }
 
-  function tokenFor(form) {
-    const widgetId = widgetMap.get(form);
-    if (!siteKey) {
-      return '';
+  function resetTurnstileSession() {
+    turnstileSessionToken = '';
+    turnstileSessionExpiresAt = 0;
+    if (turnstileWidgetId !== undefined && window.turnstile) {
+      window.turnstile.reset(turnstileWidgetId);
     }
-    return widgetId !== undefined && window.turnstile ? window.turnstile.getResponse(widgetId) : '';
-  }
-
-  function resetTurnstile(form) {
-    const widgetId = widgetMap.get(form);
-    if (widgetId !== undefined && window.turnstile) {
-      window.turnstile.reset(widgetId);
+    const feedback = document.getElementById('turnstile-global-feedback');
+    if (feedback) {
+      setMessage(feedback, 'Verification reset. Please verify again.');
     }
   }
 
@@ -221,9 +265,7 @@
   }
 
   async function fetchRegisterSuggestion(form) {
-    const data = await postJson('/api/register/suggest', {
-      turnstileToken: tokenFor(form)
-    });
+    const data = await postJson('/api/register/suggest', attachTurnstileSession({}));
     return data.username;
   }
 
@@ -293,7 +335,6 @@
           setMessage(registerFeedback, error.message, 'error');
         } finally {
           setBusy(registerForm, false);
-          resetTurnstile(registerForm);
         }
       };
       suggest();
@@ -307,17 +348,18 @@
         setMessage(registerFeedback, 'Registering…');
         setBusy(registerForm, true);
         try {
-          const payload = formPayload(registerForm);
-          payload.turnstileToken = tokenFor(registerForm);
+          const payload = attachTurnstileSession(formPayload(registerForm));
           const data = await postJson('/api/register', payload);
           setMessage(registerFeedback, `Registered as ${data.username}. First codeword: ${data.codeword}`, 'success');
           registerForm.reset();
           registerUsername.value = data.username;
         } catch (error) {
           setMessage(registerFeedback, error.message, 'error');
+          if (siteKey) {
+            resetTurnstileSession();
+          }
         } finally {
           setBusy(registerForm, false);
-          resetTurnstile(registerForm);
         }
       });
     }
@@ -328,8 +370,7 @@
         setMessage(sendPingFeedback, 'Saving status…');
         setBusy(sendPingForm, true);
         try {
-          const payload = formPayload(sendPingForm);
-          payload.turnstileToken = tokenFor(sendPingForm);
+          const payload = attachTurnstileSession(formPayload(sendPingForm));
           const result = await postJson('/api/send-ping', payload);
           setMessage(
             sendPingFeedback,
@@ -343,9 +384,11 @@
           }
         } catch (error) {
           setMessage(sendPingFeedback, error.message, 'error');
+          if (siteKey) {
+            resetTurnstileSession();
+          }
         } finally {
           setBusy(sendPingForm, false);
-          resetTurnstile(sendPingForm);
         }
       });
     });
@@ -355,8 +398,7 @@
       setBusy(loginForm, true);
       setMessage(loginFeedback, 'Signing in…');
       try {
-        const payload = formPayload(loginForm);
-        payload.turnstileToken = tokenFor(loginForm);
+        const payload = attachTurnstileSession(formPayload(loginForm));
         const data = await postJson('/api/login/start', payload);
         if (data.requires_2fa) {
           show(login2faForm, true);
@@ -378,9 +420,11 @@
         setMessage(loginFeedback, 'Logged in.', 'success');
       } catch (error) {
         setMessage(loginFeedback, error.message, 'error');
+        if (siteKey) {
+          resetTurnstileSession();
+        }
       } finally {
         setBusy(loginForm, false);
-        resetTurnstile(loginForm);
       }
     });
 
@@ -389,8 +433,7 @@
       setBusy(login2faForm, true);
       setMessage(loginFeedback, 'Verifying code…');
       try {
-        const payload = formPayload(login2faForm);
-        payload.turnstileToken = tokenFor(login2faForm);
+        const payload = attachTurnstileSession(formPayload(login2faForm));
         const data = await postJson('/api/login/verify-2fa', payload);
         currentSession = {
           sessionToken: data.session_token,
@@ -407,9 +450,11 @@
         setMessage(loginFeedback, 'Logged in.', 'success');
       } catch (error) {
         setMessage(loginFeedback, error.message, 'error');
+        if (siteKey) {
+          resetTurnstileSession();
+        }
       } finally {
         setBusy(login2faForm, false);
-        resetTurnstile(login2faForm);
       }
     });
 
@@ -418,8 +463,7 @@
       setBusy(resetRequestForm, true);
       setMessage(loginFeedback, 'Sending reset code…');
       try {
-        const payload = formPayload(resetRequestForm);
-        payload.turnstileToken = tokenFor(resetRequestForm);
+        const payload = attachTurnstileSession(formPayload(resetRequestForm));
         const data = await postJson('/api/password-reset/request', payload);
         if (data.challenge_id) {
           show(resetConfirmForm, true);
@@ -428,9 +472,11 @@
         setMessage(loginFeedback, 'If the account exists, a reset code was sent.', 'success');
       } catch (error) {
         setMessage(loginFeedback, error.message, 'error');
+        if (siteKey) {
+          resetTurnstileSession();
+        }
       } finally {
         setBusy(resetRequestForm, false);
-        resetTurnstile(resetRequestForm);
       }
     });
 
@@ -439,17 +485,18 @@
       setBusy(resetConfirmForm, true);
       setMessage(loginFeedback, 'Resetting password…');
       try {
-        const payload = formPayload(resetConfirmForm);
-        payload.turnstileToken = tokenFor(resetConfirmForm);
+        const payload = attachTurnstileSession(formPayload(resetConfirmForm));
         await postJson('/api/password-reset/confirm', payload);
         setMessage(loginFeedback, 'Password updated.', 'success');
         resetConfirmForm.reset();
         show(resetConfirmForm, false);
       } catch (error) {
         setMessage(loginFeedback, error.message, 'error');
+        if (siteKey) {
+          resetTurnstileSession();
+        }
       } finally {
         setBusy(resetConfirmForm, false);
-        resetTurnstile(resetConfirmForm);
       }
     });
 
@@ -458,8 +505,7 @@
       setBusy(checkPingForm, true);
       setMessage(checkPingFeedback, 'Checking status…');
       try {
-        const payload = formPayload(checkPingForm);
-        payload.turnstileToken = tokenFor(checkPingForm);
+        const payload = attachTurnstileSession(formPayload(checkPingForm));
         const data = await postJson('/api/check-ping', payload);
         pingerSession = {
           sessionToken: data.session_token,
@@ -476,9 +522,11 @@
         setMessage(checkPingFeedback, 'Status unlocked.', 'success');
       } catch (error) {
         setMessage(checkPingFeedback, error.message, 'error');
+        if (siteKey) {
+          resetTurnstileSession();
+        }
       } finally {
         setBusy(checkPingForm, false);
-        resetTurnstile(checkPingForm);
       }
     });
 

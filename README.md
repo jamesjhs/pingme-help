@@ -5,9 +5,10 @@ Privacy-first readiness sharing service with role-based flows for admin, users, 
 ## File structure
 
 - `.env.example` - environment template
-- `server.js` - boot entrypoint with safe startup failure handling
-- `lib/` - configuration, security, database, username/codeword generation, page rendering, and HTTP app logic
-- `public/` - mobile-first CSS and browser JavaScript
+- `server.ts` - boot entrypoint with safe startup failure handling
+- `lib/` - TypeScript modules for configuration, security, database, username/codeword generation, page rendering, and HTTP app logic
+- `public/` - mobile-first CSS and browser TypeScript
+- `dist/` - generated JavaScript build output
 - `deploy/nginx/pingme.help.conf` - NGINX reverse proxy with access logging disabled
 - `ecosystem.config.cjs` - PM2 process definition
 - `test/server.test.js` - smoke tests using the built-in Node.js test runner
@@ -20,8 +21,9 @@ Privacy-first readiness sharing service with role-based flows for admin, users, 
    ```bash
    npm install
    ```
-4. Start locally:
+4. Build and start locally:
    ```bash
+   npm run build
    npm start
    ```
 
@@ -76,5 +78,5 @@ pm2 save
 - Admin dashboard exposes total user count and SMTP settings.
 - Users can create multiple codewords, disable individual codewords, invite others, and delete their own accounts.
 - Follower access ("Check a Ping") is codeword-gated and burn messages are single-view.
-- The backend strips common IP forwarding headers, does not use request logging middleware, and relies on Cloudflare Turnstile on non-logged-in forms.
+- The backend strips common IP forwarding headers, does not use request logging middleware, and relies on a single site-level Cloudflare Turnstile verification session for non-logged-in forms.
 - Database boot fails safely when `DB_ENCRYPTION_KEY` is missing or unusable.

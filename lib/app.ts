@@ -1,3 +1,4 @@
+// @ts-nocheck
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
@@ -209,6 +210,7 @@ function createServer({ config, store }) {
   const sessions = new Map();
   const loginChallenges = new Map();
   const resetChallenges = new Map();
+  const turnstileSessions = new Map();
 
   const cleanupExpiredChallenges = () => {
     const now = Date.now();
@@ -220,6 +222,11 @@ function createServer({ config, store }) {
     for (const [id, value] of resetChallenges.entries()) {
       if (value.expiresAt <= now) {
         resetChallenges.delete(id);
+      }
+    }
+    for (const [id, value] of turnstileSessions.entries()) {
+      if (value.expiresAt <= now) {
+        turnstileSessions.delete(id);
       }
     }
   };
@@ -264,13 +271,37 @@ function createServer({ config, store }) {
       const payload = await getRequestBody(request);
 
       const requireTurnstile = async () => {
-        const turnstileToken = String(payload.turnstileToken || '');
-        if (!(await verifyTurnstile(config, turnstileToken))) {
+        if (!config.turnstileSecretKey) {
+          return true;
+        }
+        const sessionToken = String(payload.turnstileSessionToken || '');
+        const session = turnstileSessions.get(sessionToken);
+        if (!session || session.expiresAt <= Date.now()) {
+          if (sessionToken) {
+            turnstileSessions.delete(sessionToken);
+          }
           sendJson(response, 400, { ok: false, error: 'Turnstile verification failed' });
           return false;
         }
         return true;
       };
+
+      if (url.pathname === '/api/turnstile/session') {
+        if (!config.turnstileSecretKey) {
+          sendJson(response, 200, { ok: true, bypass: true });
+          return;
+        }
+        const turnstileToken = String(payload.turnstileToken || '');
+        if (!(await verifyTurnstile(config, turnstileToken))) {
+          sendJson(response, 400, { ok: false, error: 'Turnstile verification failed' });
+          return;
+        }
+        const sessionToken = randomId();
+        const expiresIn = 15 * 60 * 1000;
+        turnstileSessions.set(sessionToken, { expiresAt: Date.now() + expiresIn });
+        sendJson(response, 200, { ok: true, turnstile_session_token: sessionToken, expires_in_ms: expiresIn });
+        return;
+      }
 
       if (url.pathname === '/api/register/suggest') {
         if (!(await requireTurnstile())) {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { loadConfig } = require('./lib/config');
 const { DatabaseStore } = require('./lib/database');
 const { createServer } = require('./lib/app');

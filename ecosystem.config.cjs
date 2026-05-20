@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'pingme-help',
-      script: './server.js',
+      script: './dist/server.js',
       cwd: __dirname,
       instances: 1,
       exec_mode: 'fork',
