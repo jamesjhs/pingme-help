@@ -91,13 +91,15 @@
   function updateHomeLayout() {
     const homeTabs = document.getElementById('home-tabs');
     const quickStatusCard = document.getElementById('quick-status-card');
-    const siteVerification = document.getElementById('site-verification');
+    const pitchCard = document.querySelector('.pitch-card');
     const isLoggedIn = Boolean(currentSession);
     const isUser = isLoggedIn && currentSession.role === 'user';
 
     show(homeTabs, !isLoggedIn);
     show(quickStatusCard, isUser);
-    show(siteVerification, !isLoggedIn);
+    if (pitchCard) {
+      pitchCard.hidden = isLoggedIn;
+    }
   }
 
   function mountTurnstile() {
@@ -119,7 +121,7 @@
       }
       turnstileWidgetId = window.turnstile.render(shell, {
         sitekey: siteKey,
-        theme: 'light',
+        theme: 'dark',
         callback: async (token) => {
           try {
             const data = await postJson('/api/turnstile/session', { turnstileToken: token });
@@ -169,21 +171,33 @@
   }
 
   function initTabs() {
-    const buttons = document.querySelectorAll('[data-tab-target]');
-    buttons.forEach((button) => {
-      button.addEventListener('click', () => {
-        const target = button.dataset.tabTarget;
-        document.querySelectorAll('.tab-button').forEach((item) => {
-          item.classList.toggle('is-active', item === button);
-          item.setAttribute('aria-selected', item === button ? 'true' : 'false');
-        });
-        document.querySelectorAll('.tab-panel').forEach((panel) => {
-          const active = panel.id === target;
-          panel.classList.toggle('is-active', active);
-          panel.hidden = !active;
-        });
+    function activateTab(target, allowCollapse) {
+      const alreadyActive = !!(document.querySelector('.tab-button[data-tab-target="' + target + '"]')?.classList.contains('is-active'));
+      document.querySelectorAll('.tab-button').forEach((item) => {
+        item.classList.remove('is-active');
+        item.setAttribute('aria-selected', 'false');
       });
+      document.querySelectorAll('.tab-panel').forEach((panel) => {
+        panel.classList.remove('is-active');
+        panel.hidden = true;
+      });
+      if (!allowCollapse || !alreadyActive) {
+        const button = document.querySelector('.tab-button[data-tab-target="' + target + '"]');
+        const panel = document.getElementById(target);
+        if (button) {
+          button.classList.add('is-active');
+          button.setAttribute('aria-selected', 'true');
+        }
+        if (panel) {
+          panel.classList.add('is-active');
+          panel.hidden = false;
+        }
+      }
+    }
+    document.querySelectorAll('[data-tab-target]').forEach((button) => {
+      button.addEventListener('click', () => activateTab(button.dataset.tabTarget, true));
     });
+    return activateTab;
   }
 
   function setCodewordList(items) {
@@ -312,8 +326,31 @@
   }
 
   function initHome() {
-    initTabs();
+    const activateTab = initTabs();
     updateHomeLayout();
+
+    // Deep-link: open a specific tab from URL params (e.g. share links with ?tab=check&user=...)
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam) {
+      activateTab(tabParam + '-panel', false);
+    }
+    const userParam = params.get('user');
+    if (userParam) {
+      const checkUsernameInput = document.querySelector('#check-panel input[name="username"]');
+      if (checkUsernameInput) {
+        checkUsernameInput.value = userParam;
+      }
+    }
+
+    // CTA "Get started" button on pitch card opens the register tab
+    document.querySelectorAll('[data-open-tab]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.dataset.openTab;
+        activateTab(target, false);
+        document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
 
     const sendPingForm = document.getElementById('send-ping-form');
     const sendPingFeedback = document.getElementById('send-ping-feedback');

@@ -62,15 +62,16 @@ function renderHomePage(siteKey) {
         <div id="quick-status-feedback" class="feedback" aria-live="polite"></div>
       </section>
 
-      <section id="home-tabs" class="tabs card" aria-label="Homepage tabs">
+      <section id="home-tabs" class="tabs card" aria-label="Homepage actions">
+        <p class="eyebrow">What would you like to do?</p>
         <div class="tab-row" role="tablist">
-          <button class="tab-button is-active" type="button" id="tab-btn-send" data-tab-target="send-panel" role="tab" aria-selected="true" aria-controls="send-panel">Send a Ping</button>
+          <button class="tab-button" type="button" id="tab-btn-send" data-tab-target="send-panel" role="tab" aria-selected="false" aria-controls="send-panel">Send a Ping</button>
           <button class="tab-button" type="button" id="tab-btn-register" data-tab-target="register-panel" role="tab" aria-selected="false" aria-controls="register-panel">Register</button>
           <button class="tab-button" type="button" id="tab-btn-login" data-tab-target="login-panel" role="tab" aria-selected="false" aria-controls="login-panel">Login</button>
           <button class="tab-button" type="button" id="tab-btn-check" data-tab-target="check-panel" role="tab" aria-selected="false" aria-controls="check-panel">Check a Ping</button>
         </div>
 
-        <section id="send-panel" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-btn-send">
+        <section id="send-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-send" hidden>
           <form id="send-ping-form" class="stack-form" novalidate>
             <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
@@ -154,6 +155,48 @@ function renderHomePage(siteKey) {
             </div>
           </section>
         </section>
+
+        <div class="home-tabs-verify" id="site-verification">
+          <p class="eyebrow">Security verification</p>
+          <div id="turnstile-global-widget"></div>
+        </div>
+      </section>
+
+      <section class="card pitch-card" aria-label="About PingMe.help">
+        <p class="eyebrow">Why PingMe.help?</p>
+        <h2 class="pitch-headline">Someone cares if you get home safe.</h2>
+        <p class="pitch-lede">PingMe.help is the private, zero-noise check-in service for people who look out for each other — no apps to install, no accounts to share, no data to sell.</p>
+        <ul class="pitch-features">
+          <li class="pitch-feature">
+            <span class="pitch-icon" aria-hidden="true">🔒</span>
+            <div>
+              <strong>Ping in under a minute</strong>
+              <p>Send a secure status update in seconds. The people you trust always know you're OK — without bombarding them with notifications.</p>
+            </div>
+          </li>
+          <li class="pitch-feature">
+            <span class="pitch-icon" aria-hidden="true">🔥</span>
+            <div>
+              <strong>One-read burn messages</strong>
+              <p>Leave a private note that vanishes the moment it's opened. No copies, no logs, no leaks — ever.</p>
+            </div>
+          </li>
+          <li class="pitch-feature">
+            <span class="pitch-icon" aria-hidden="true">🤝</span>
+            <div>
+              <strong>Trusted access only</strong>
+              <p>Share a codeword with the people you choose. Only they can check your status — nobody else can see a thing.</p>
+            </div>
+          </li>
+          <li class="pitch-feature">
+            <span class="pitch-icon" aria-hidden="true">🚫</span>
+            <div>
+              <strong>No ads. No tracking. No bloat.</strong>
+              <p>Privacy-first by design. We store only what's strictly needed — and nothing more.</p>
+            </div>
+          </li>
+        </ul>
+        <button class="primary-button pitch-cta" type="button" data-open-tab="register-panel">Get started — it&#39;s free &rarr;</button>
       </section>
 
       <section id="user-dashboard" class="card hidden" aria-live="polite">
@@ -237,11 +280,6 @@ function renderHomePage(siteKey) {
           <button id="admin-logout" class="destructive-button" type="button">Logout</button>
         </div>
         <div id="admin-dashboard-feedback" class="feedback" aria-live="polite"></div>
-      </section>
-
-      <section class="card" id="site-verification">
-        <p class="eyebrow">Security verification</p>
-        <div id="turnstile-global-widget"></div>
       </section>
     `
   });
