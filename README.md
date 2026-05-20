@@ -1,48 +1,79 @@
 # pingme.help
 
-Privacy-first readiness sharing service with role-based flows for admin, users, and follower "pingers".
+Privacy-first readiness sharing for people who want a lightweight way to check in, share status, and let trusted followers verify that they are safe.
 
-## File structure
+Current application version: `v0.1.0`
+
+## Feature overview
+
+- PWA-ready homepage with install prompt, manifest, and service worker shell caching.
+- Public homepage flows for **Send a Ping**, **Register**, **Login**, and **Check a Ping**.
+- Email-first authentication for users, with admin username fallback support.
+- Email verification, email-based password reset, and optional email 2FA for users and admins.
+- Shared codewords for follower access, including one-read burn messages.
+- User dashboard for status updates, codeword management, invites, password changes, and account deletion.
+- Admin dashboard for SMTP configuration, invite sending, and admin 2FA.
+- Encrypted SQLite storage, hardened headers, Turnstile integration, and request-body/input sanitisation.
+
+## Repository layout
 
 - `.env.example` - environment template
-- `server.ts` - boot entrypoint with safe startup failure handling
-- `lib/` - TypeScript modules for configuration, security, database, username/codeword generation, page rendering, and HTTP app logic
-- `public/` - mobile-first CSS and browser TypeScript
-- `dist/` - generated JavaScript build output
-- `deploy/nginx/pingme.help.conf` - NGINX reverse proxy with access logging disabled
+- `server.ts` - process bootstrap and top-level error handling
+- `lib/` - configuration, security, database, page rendering, and HTTP server logic
+- `public/` - browser TypeScript and site CSS
+- `test/` - Node built-in integration tests
+- `deploy/nginx/pingme.help.conf` - example reverse-proxy config
 - `ecosystem.config.cjs` - PM2 process definition
-- `test/server.test.js` - smoke tests using the built-in Node.js test runner
+- `docs/installation-manual.md` - in-depth install and deployment guide
+- `docs/technical-reference.md` - architecture, API, security, and UI reference
 
-## Setup
+## Requirements
 
-1. Install Node.js 24 on the host.
-2. Copy `.env.example` to `.env` and set real secrets.
-3. Install dependencies:
+- Node.js `>=24.0.0`
+- npm
+- A strong `DB_ENCRYPTION_KEY`
+- Optional but recommended production services:
+  - Cloudflare Turnstile site and secret keys
+  - SMTP server for verification, invite, and reset emails
+  - TLS termination in front of the app
+
+## Quick start
+
+1. Install dependencies:
    ```bash
    npm install
    ```
-4. Build and start locally:
+2. Copy the environment template:
    ```bash
-   npm run build
+   cp .env.example .env
+   ```
+3. Set required secrets in `.env`.
+4. Validate the app:
+   ```bash
+   npm test
+   npm run audit
+   ```
+5. Start locally:
+   ```bash
    npm start
    ```
 
-## Environment template
+## Environment variables
 
-```dotenv
-PORT=9999
-DB_ENCRYPTION_KEY=your_strong_sqlite_passphrase_here
-TURNSTILE_SITE_KEY=
-TURNSTILE_SECRET_KEY=
-ADMIN_USER=admin
-ADMIN_PASS=temporary_cleartext_password
-SMTP_HOST=
-SMTP_PORT=
-SMTP_USER=
-SMTP_FROM=
-SMTP_PASS=
-SMTP_STARTTLS=true
-```
+| Variable | Required | Purpose |
+|---|---:|---|
+| `PORT` | No | HTTP port, defaults to `9999` |
+| `DB_ENCRYPTION_KEY` | Yes | SQLCipher passphrase for the encrypted SQLite database |
+| `TURNSTILE_SITE_KEY` | No | Client-side Cloudflare Turnstile site key |
+| `TURNSTILE_SECRET_KEY` | No | Server-side Turnstile verification secret |
+| `ADMIN_USER` | No | Admin username, defaults to `admin` |
+| `ADMIN_PASS` | Yes | Initial admin password |
+| `SMTP_HOST` | No | SMTP host for outbound email |
+| `SMTP_PORT` | No | SMTP port, defaults to `587` |
+| `SMTP_USER` | No | SMTP username |
+| `SMTP_FROM` | No | Optional sender override; falls back to SMTP auth user when blank |
+| `SMTP_PASS` | No | SMTP password |
+| `SMTP_STARTTLS` | No | Whether STARTTLS is required, defaults to `true` |
 
 ## Validation
 
@@ -51,33 +82,27 @@ npm test
 npm run audit
 ```
 
-## Deployment with PM2
+## Documentation
 
-```bash
-npm install
-pm2 start ecosystem.config.cjs --env production
-pm2 save
-```
+- [Installation Manual](./docs/installation-manual.md)
+- [Technical Reference](./docs/technical-reference.md)
 
-## Deployment with NGINX
+## Deployment notes
 
-1. Copy `deploy/nginx/pingme.help.conf` to `/etc/nginx/sites-available/pingme.help.conf`.
-2. Enable the site and reload NGINX:
-   ```bash
-   sudo ln -s /etc/nginx/sites-available/pingme.help.conf /etc/nginx/sites-enabled/pingme.help.conf
-   sudo nginx -t
-   sudo systemctl reload nginx
-   ```
-3. Add TLS separately for production.
+- PM2 example:
+  ```bash
+  npm install
+  pm2 start ecosystem.config.cjs --env production
+  pm2 save
+  ```
+- NGINX example config is provided in `deploy/nginx/pingme.help.conf`.
+- Add TLS separately before exposing the app publicly.
 
-## Notes
+## Security and operations notes
 
-- `GET /readyz` returns the live readiness payload with the current ISO timestamp.
-- Homepage tabs: Send a Ping, Register, Login, and Check a Ping. After a user or admin logs in, the tabs are hidden and the user quick check-in controls move to the top of the page.
-- User registration uses auto-generated verb-noun usernames, signs the user in immediately, sends a magic-link email verification, and generates an initial adjective-noun follower codeword.
-- User/admin login supports optional email 2FA; user password reset is email-based.
-- Admin dashboard exposes total user count and SMTP settings.
-- Users can create multiple codewords, disable individual codewords, resend email verification, change their password, invite others, and delete their own accounts.
-- Follower access ("Check a Ping") is codeword-gated and burn messages are single-view.
-- The backend strips common IP forwarding headers, does not use request logging middleware, and relies on a single site-level Cloudflare Turnstile verification session for non-logged-in forms, with the main public action buttons unlocked only after the human check completes.
-- Database boot fails safely when `DB_ENCRYPTION_KEY` is missing or unusable.
+- Public forms rely on a single site-level Turnstile verification session when Turnstile is configured.
+- If `TURNSTILE_SECRET_KEY` is left blank, bot protection is bypassed.
+- Session state and lockout state are in process memory, so they reset on restart.
+- The database is encrypted at rest; losing `DB_ENCRYPTION_KEY` means losing access to the data.
+- Email features require working SMTP settings.
+- Back up the SQLite database together with any `-wal` and `-shm` files when the service is offline.

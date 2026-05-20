@@ -40,7 +40,7 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
     </header>
     <main class="page">${content}</main>
     <footer class="footer">
-      <div>&copy;PingMe.HELP 2026 | v0.0.1</div>
+      <div>&copy;jahosi.co.uk 2026 | v0.1.0</div>
       <a href="/privacy">Privacy Policy</a>
     </footer>
   </div>
@@ -302,6 +302,9 @@ function renderPrivacyPage(siteKey) {
         <p>pingme.help is built to limit personal data collection, but no online service is risk-free. By using this website you accept that you do so at your own risk, and that any data you choose to store is also at your own risk.</p>
         <h2>What we store</h2>
         <p>We store account usernames, password hashes, account emails, status updates, optional burn messages, and timestamps needed to show recent activity. We may also process and store email-related settings needed to deliver account, invitation, and verification messages.</p>
+        <h2>Browser sessions and verification</h2>
+        <p>During active use the site keeps temporary session tokens in browser memory so the current browser tab can stay signed in and complete protected actions. These tokens are not written to cookies or local storage by the app.</p>
+        <p>If bot protection is enabled, Cloudflare Turnstile is loaded to verify that a visitor is human before public forms can be submitted. That challenge is provided by Cloudflare, which may process challenge-related network and browser metadata under its own terms.</p>
         <h2>Network and email limits</h2>
         <p>Even with encrypted storage and security controls, network providers and email providers may still process IP addresses and delivery metadata outside this site’s direct control. No method can guarantee complete anonymity or permanent availability.</p>
         <h2>Availability and alternatives</h2>

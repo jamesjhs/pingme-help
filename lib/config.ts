@@ -4,7 +4,7 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const APP_VERSION = 'v0.0.1';
+const APP_VERSION = 'v0.1.0';
 const SERVICE_NAME = 'pingme.help';
 const ROOT_DIR = path.resolve(__dirname, '..');
 

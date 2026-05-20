@@ -13,7 +13,7 @@ const { createServer } = require('../lib/app');
 function makeConfig(tempDir, overrides = {}) {
   return {
     serviceName: 'pingme.help',
-    version: 'v0.0.1',
+    version: 'v0.1.0',
     dbFile: path.join(tempDir, 'test.sqlite'),
     dbEncryptionKey: 'unit-test-secret',
     turnstileSiteKey: '',
@@ -78,7 +78,7 @@ test('readyz returns service metadata', async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.ok, true);
   assert.equal(payload.service, 'pingme.help');
-  assert.equal(payload.version, 'v0.0.1');
+  assert.equal(payload.version, 'v0.1.0');
 
   await close();
 });
