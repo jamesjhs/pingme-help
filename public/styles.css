@@ -116,7 +116,9 @@ textarea {
 .primary-button,
 .destructive-button,
 .status-button,
-.blur-card {
+.blur-card,
+.icon-button,
+.link-button {
   border: 0;
   border-radius: 1rem;
   padding: 0.95rem 1rem;
@@ -155,6 +157,28 @@ textarea {
   color: var(--text);
 }
 
+.input-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.icon-button {
+  width: 3.5rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #edf3ff;
+  color: var(--accent);
+}
+
+.icon-button svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
 textarea {
   resize: vertical;
   min-height: 6.5rem;
@@ -168,7 +192,9 @@ textarea {
 
 .status-button,
 .primary-button,
-.destructive-button {
+.destructive-button,
+.icon-button,
+.link-button {
   cursor: pointer;
   min-height: 3.5rem;
 }
@@ -187,6 +213,13 @@ textarea {
 .primary-button {
   background: var(--accent);
   color: #fff;
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .turnstile-shell {
@@ -236,6 +269,25 @@ textarea {
 .status-pill[data-state='not-ok'] {
   background: rgba(192, 50, 33, 0.12);
   color: var(--danger);
+}
+
+.verification-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.5rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(192, 50, 33, 0.12);
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+.verification-status[data-state='verified'] {
+  background: rgba(25, 135, 84, 0.12);
+  color: var(--ok);
 }
 
 .timestamp-copy {

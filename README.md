@@ -72,11 +72,11 @@ pm2 save
 ## Notes
 
 - `GET /readyz` returns the live readiness payload with the current ISO timestamp.
-- Homepage tabs: Send a Ping, Register, Login, and Check a Ping.
-- User registration uses auto-generated verb-noun usernames and generates an initial adjective-noun follower codeword.
+- Homepage tabs: Send a Ping, Register, Login, and Check a Ping. After a user or admin logs in, the tabs are hidden and the user quick check-in controls move to the top of the page.
+- User registration uses auto-generated verb-noun usernames, signs the user in immediately, sends a magic-link email verification, and generates an initial adjective-noun follower codeword.
 - User/admin login supports optional email 2FA; user password reset is email-based.
 - Admin dashboard exposes total user count and SMTP settings.
-- Users can create multiple codewords, disable individual codewords, invite others, and delete their own accounts.
+- Users can create multiple codewords, disable individual codewords, resend email verification, change their password, invite others, and delete their own accounts.
 - Follower access ("Check a Ping") is codeword-gated and burn messages are single-view.
-- The backend strips common IP forwarding headers, does not use request logging middleware, and relies on a single site-level Cloudflare Turnstile verification session for non-logged-in forms.
+- The backend strips common IP forwarding headers, does not use request logging middleware, and relies on a single site-level Cloudflare Turnstile verification session for non-logged-in forms, with the main public action buttons unlocked only after the human check completes.
 - Database boot fails safely when `DB_ENCRYPTION_KEY` is missing or unusable.

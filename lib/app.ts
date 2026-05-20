@@ -7,6 +7,7 @@ const { URL } = require('node:url');
 const nodemailer = require('nodemailer');
 const {
   BackoffLockout,
+  escapeHtml,
   hashPassword,
   normalizeEmail,
   normalizePassword,
@@ -72,6 +73,51 @@ function sendAsset(response, asset) {
   response.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   response.writeHead(200, { 'Content-Type': asset.type });
   response.end(asset.body);
+}
+
+function getPublicOrigin(config, requestUrl) {
+  if (['127.0.0.1', 'localhost', '[::1]'].includes(requestUrl.hostname)) {
+    return requestUrl.origin;
+  }
+  const serviceName = String(config.serviceName || '').trim();
+  if (/^https?:\/\//i.test(serviceName)) {
+    return serviceName.replace(/\/+$/, '');
+  }
+  if (serviceName && /^[a-z0-9.-]+$/i.test(serviceName)) {
+    return `https://${serviceName}`;
+  }
+  return requestUrl.origin;
+}
+
+function buildEmailVerificationLink(config, requestUrl, username, token) {
+  const link = new URL('/verify-email', getPublicOrigin(config, requestUrl));
+  link.searchParams.set('username', username);
+  link.searchParams.set('token', token);
+  return link.toString();
+}
+
+function renderEmailVerificationResultPage(success, message) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Email verification | pingme.help</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body data-view="email-verification">
+  <div class="shell">
+    <main class="page">
+      <section class="card">
+        <p class="eyebrow">Email verification</p>
+        <h1>${success ? 'Email verified' : 'Verification failed'}</h1>
+        <p class="lede">${escapeHtml(message)}</p>
+        <a class="primary-button link-button" href="/">Return to pingme.help</a>
+      </section>
+    </main>
+  </div>
+</body>
+</html>`;
 }
 
 function notFound(response) {
@@ -202,6 +248,18 @@ function ensureAuthedSession(payload, sessions, expectedType = null) {
   return { token, session };
 }
 
+function buildUserDashboard(store, username) {
+  const user = store.getUser(username);
+  return {
+    private_stats: store.getPrivateStats(username),
+    codewords: store.listCodewords(username),
+    twofa_enabled: Boolean(user && user.twofa_enabled),
+    email: user && user.email ? user.email : '',
+    email_verified: Boolean(user && user.email_verified_at),
+    email_verified_at: user && user.email_verified_at ? user.email_verified_at : null
+  };
+}
+
 function createServer({ config, store }) {
   const lockout = new BackoffLockout();
   const homePageHtml = renderHomePage(config.turnstileSiteKey);
@@ -229,6 +287,29 @@ function createServer({ config, store }) {
         turnstileSessions.delete(id);
       }
     }
+  };
+
+  const sendVerificationEmail = async (requestUrl, username, email) => {
+    if (!email) {
+      return false;
+    }
+    const token = randomId();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    store.setUserTwofa(
+      username,
+      Boolean(store.getUser(username)?.twofa_enabled),
+      email,
+      null,
+      hashPassword(token),
+      expiresAt
+    );
+    const link = buildEmailVerificationLink(config, requestUrl, username, token);
+    const sent = await sendMail(config, store, {
+      to: email,
+      subject: 'Verify your pingme.help email',
+      text: `Open this link to verify your email address: ${link}\n\nThis link expires in 24 hours.`
+    }).catch(() => false);
+    return Boolean(sent);
   };
 
   return http.createServer(async (request, response) => {
@@ -260,6 +341,31 @@ function createServer({ config, store }) {
 
       if (method === 'GET' && url.pathname === '/privacy') {
         sendHtml(response, 200, privacyPageHtml);
+        return;
+      }
+
+      if (method === 'GET' && url.pathname === '/verify-email') {
+        const username = normalizeUsername(url.searchParams.get('username') || '');
+        const token = String(url.searchParams.get('token') || '').trim();
+        const user = store.getUser(username);
+        const expiresAt = user && user.email_verification_expires_at
+          ? Date.parse(user.email_verification_expires_at)
+          : NaN;
+        const valid = Boolean(
+          user &&
+          token &&
+          user.email &&
+          user.email_verification_token_hash &&
+          Number.isFinite(expiresAt) &&
+          expiresAt > Date.now() &&
+          verifyPassword(token, user.email_verification_token_hash)
+        );
+        if (!valid) {
+          sendHtml(response, 400, renderEmailVerificationResultPage(false, 'This verification link is invalid or has expired.'));
+          return;
+        }
+        store.markEmailVerified(username, nowIso());
+        sendHtml(response, 200, renderEmailVerificationResultPage(true, `The address ${user.email} is now verified.`));
         return;
       }
 
@@ -304,9 +410,6 @@ function createServer({ config, store }) {
       }
 
       if (url.pathname === '/api/register/suggest') {
-        if (!(await requireTurnstile())) {
-          return;
-        }
         for (let i = 0; i < 20; i += 1) {
           const username = generateVerbNounUsername();
           if (!store.getUser(username)) {
@@ -334,15 +437,33 @@ function createServer({ config, store }) {
           sendJson(response, 409, { ok: false, error: 'Username unavailable' });
           return;
         }
+        const createdAt = nowIso();
         store.registerUser({
           username,
           passwordHash: hashPassword(password),
           email,
-          createdAt: nowIso()
+          createdAt
         });
         const firstCodeword = generateAdjectiveNounCodeword();
-        store.createCodeword(username, firstCodeword, nowIso());
-        sendJson(response, 200, { ok: true, username, codeword: firstCodeword });
+        store.createCodeword(username, firstCodeword, createdAt);
+        const verificationEmailSent = await sendVerificationEmail(url, username, email);
+        const sessionToken = randomId();
+        sessions.set(sessionToken, {
+          username,
+          role: 'user',
+          type: 'user'
+        });
+        sendJson(response, 200, {
+          ok: true,
+          username,
+          codeword: firstCodeword,
+          session_token: sessionToken,
+          role: 'user',
+          verification_email_sent: verificationEmailSent,
+          dashboard: {
+            user: buildUserDashboard(store, username)
+          }
+        });
         return;
       }
 
@@ -375,6 +496,27 @@ function createServer({ config, store }) {
           lastStatusUpdate: nowIso()
         });
         const stats = store.getPrivateStats(username);
+        sendJson(response, 200, {
+          ok: true,
+          private_stats: {
+            last_viewer_access: stats && stats.last_viewer_access ? stats.last_viewer_access : 'Never',
+            message_viewed_flag: Boolean(stats && stats.message_viewed_flag)
+          }
+        });
+        return;
+      }
+
+      if (url.pathname === '/api/user/status') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const burnMessage = sanitizeMessage(payload.message);
+        const status = payload.status === 'not_ok' ? 0 : 1;
+        store.saveUserStatus({
+          username: session.username,
+          status,
+          burnMessage,
+          lastStatusUpdate: nowIso()
+        });
+        const stats = store.getPrivateStats(session.username);
         sendJson(response, 200, {
           ok: true,
           private_stats: {
@@ -475,14 +617,7 @@ function createServer({ config, store }) {
           dashboard: {
             total_users: role === 'admin' ? store.getTotalUsers() : undefined,
             smtp: role === 'admin' ? store.getSmtpSettings(config) : undefined,
-            user: role === 'user'
-              ? {
-                private_stats: store.getPrivateStats(username),
-                codewords: store.listCodewords(username),
-                twofa_enabled: Boolean(user.twofa_enabled),
-                email: user.email || ''
-              }
-              : undefined
+            user: role === 'user' ? buildUserDashboard(store, username) : undefined
           }
         });
         return;
@@ -515,14 +650,7 @@ function createServer({ config, store }) {
           dashboard: {
             total_users: challenge.role === 'admin' ? store.getTotalUsers() : undefined,
             smtp: challenge.role === 'admin' ? store.getSmtpSettings(config) : undefined,
-            user: challenge.role === 'user'
-              ? {
-                private_stats: store.getPrivateStats(challenge.username),
-                codewords: store.listCodewords(challenge.username),
-                twofa_enabled: Boolean(user && user.twofa_enabled),
-                email: user && user.email ? user.email : ''
-              }
-              : undefined
+            user: challenge.role === 'user' ? buildUserDashboard(store, challenge.username) : undefined
           }
         });
         return;
@@ -680,7 +808,65 @@ function createServer({ config, store }) {
           sendJson(response, 400, { ok: false, error: 'Email is required to enable 2FA' });
           return;
         }
-        store.setUserTwofa(session.username, enabled, email);
+        const user = store.getUser(session.username);
+        const emailChanged = !secureCompareText(user && user.email ? user.email : '', email || '');
+        const emailVerifiedAt = emailChanged ? null : (user && user.email_verified_at ? user.email_verified_at : null);
+        const emailVerificationTokenHash = emailChanged ? null : (user && user.email_verification_token_hash ? user.email_verification_token_hash : null);
+        const emailVerificationExpiresAt = emailChanged ? null : (user && user.email_verification_expires_at ? user.email_verification_expires_at : null);
+        store.setUserTwofa(
+          session.username,
+          enabled,
+          email,
+          emailVerifiedAt,
+          emailVerificationTokenHash,
+          emailVerificationExpiresAt
+        );
+        const verificationEmailSent = emailChanged && email
+          ? await sendVerificationEmail(url, session.username, email)
+          : false;
+        sendJson(response, 200, {
+          ok: true,
+          verification_email_sent: verificationEmailSent,
+          dashboard: {
+            user: buildUserDashboard(store, session.username)
+          }
+        });
+        return;
+      }
+
+      if (url.pathname === '/api/user/email-verification/resend') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const user = store.getUser(session.username);
+        if (!user || !user.email) {
+          sendJson(response, 400, { ok: false, error: 'Email is not configured' });
+          return;
+        }
+        const sent = await sendVerificationEmail(url, session.username, user.email);
+        sendJson(response, 200, {
+          ok: true,
+          verification_email_sent: sent,
+          dashboard: {
+            user: buildUserDashboard(store, session.username)
+          }
+        });
+        return;
+      }
+
+      if (url.pathname === '/api/user/password') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const currentPassword = normalizePassword(payload.currentPassword);
+        const newPassword = normalizePassword(payload.newPassword);
+        const newPasswordConfirm = normalizePassword(payload.newPasswordConfirm);
+        if (!secureCompareText(newPassword, newPasswordConfirm)) {
+          sendJson(response, 400, { ok: false, error: 'Passwords do not match' });
+          return;
+        }
+        const user = store.getUser(session.username);
+        if (!user || !verifyPassword(currentPassword, user.password_hash)) {
+          sendJson(response, 401, { ok: false, error: 'Current password is incorrect' });
+          return;
+        }
+        store.updatePassword(session.username, hashPassword(newPassword));
         sendJson(response, 200, { ok: true });
         return;
       }
@@ -768,17 +954,11 @@ function createServer({ config, store }) {
           return;
         }
         if (session.type === 'user') {
-          const user = store.getUser(session.username);
           sendJson(response, 200, {
             ok: true,
             role: 'user',
             dashboard: {
-              user: {
-                private_stats: store.getPrivateStats(session.username),
-                codewords: store.listCodewords(session.username),
-                twofa_enabled: Boolean(user && user.twofa_enabled),
-                email: user && user.email ? user.email : ''
-              }
+              user: buildUserDashboard(store, session.username)
             }
           });
           return;

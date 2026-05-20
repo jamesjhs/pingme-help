@@ -5,6 +5,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { once } = require('node:events');
+const nodemailer = require('nodemailer');
+const { hashPassword, verifyPassword } = require('../lib/security');
 const { DatabaseStore } = require('../lib/database');
 const { createServer } = require('../lib/app');
 
@@ -48,6 +50,23 @@ async function postJson(base, urlPath, body) {
   return { status: response.status, data, headers: response.headers };
 }
 
+function mockMailer() {
+  const sent = [];
+  const original = nodemailer.createTransport;
+  nodemailer.createTransport = () => ({
+    async sendMail(message) {
+      sent.push(message);
+    },
+    close() {}
+  });
+  return {
+    sent,
+    restore() {
+      nodemailer.createTransport = original;
+    }
+  };
+}
+
 test('readyz returns service metadata', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
   const { base, close } = await startServer(makeConfig(tempDir));
@@ -63,9 +82,14 @@ test('readyz returns service metadata', async () => {
   await close();
 });
 
-test('registration suggestion and registration create a new user', async () => {
+test('registration auto logs in and marks the email unverified until the magic link is opened', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
-  const { base, store, close } = await startServer(makeConfig(tempDir));
+  const mailer = mockMailer();
+  const { base, store, close } = await startServer(makeConfig(tempDir, {
+    smtpHost: 'smtp.example.com',
+    smtpUser: 'mailer',
+    smtpPass: 'secret'
+  }));
 
   const suggestion = await postJson(base, '/api/register/suggest', {});
   assert.equal(suggestion.status, 200);
@@ -79,11 +103,25 @@ test('registration suggestion and registration create a new user', async () => {
   });
 
   assert.equal(register.status, 200);
+  assert.equal(typeof register.data.session_token, 'string');
+  assert.equal(register.data.dashboard.user.email_verified, false);
+  assert.equal(register.data.verification_email_sent, true);
   const user = store.getUser(suggestion.data.username);
   assert.ok(user);
   assert.equal(user.email, 'user@example.com');
+  assert.equal(Boolean(user.email_verified_at), false);
+  assert.equal(mailer.sent.length, 1);
+  const link = mailer.sent[0].text.match(/https?:\/\/\S+/)?.[0];
+  assert.ok(link);
+
+  const verifyResponse = await fetch(link);
+  const verifyHtml = await verifyResponse.text();
+  assert.equal(verifyResponse.status, 200);
+  assert.match(verifyHtml, /Email verified/i);
+  assert.ok(store.getUser(suggestion.data.username).email_verified_at);
 
   await close();
+  mailer.restore();
 });
 
 test('send ping updates status and check ping can reveal burn message once', async () => {
@@ -92,7 +130,7 @@ test('send ping updates status and check ping can reveal burn message once', asy
 
   store.registerUser({
     username: 'alice',
-    passwordHash: require('../lib/security').hashPassword('password123'),
+    passwordHash: hashPassword('password123'),
     email: 'alice@example.com',
     createdAt: '2026-05-19T00:00:00.000Z'
   });
@@ -131,7 +169,7 @@ test('admin login returns dashboard with total users and smtp settings', async (
 
   store.registerUser({
     username: 'sam',
-    passwordHash: require('../lib/security').hashPassword('password123'),
+    passwordHash: hashPassword('password123'),
     email: 'sam@example.com',
     createdAt: '2026-05-19T00:00:00.000Z'
   });
@@ -159,6 +197,50 @@ test('admin login returns dashboard with total users and smtp settings', async (
   assert.equal(updateSmtp.data.smtp.host, 'smtp.example.com');
 
   await close();
+});
+
+test('user dashboard can resend email verification and change password', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const mailer = mockMailer();
+  const { base, store, close } = await startServer(makeConfig(tempDir, {
+    smtpHost: 'smtp.example.com',
+    smtpUser: 'mailer',
+    smtpPass: 'secret'
+  }));
+
+  store.registerUser({
+    username: 'riley',
+    passwordHash: hashPassword('password123'),
+    email: 'riley@example.com',
+    createdAt: '2026-05-19T00:00:00.000Z'
+  });
+
+  const login = await postJson(base, '/api/login/start', {
+    username: 'riley',
+    password: 'password123'
+  });
+
+  assert.equal(login.status, 200);
+  assert.equal(login.data.dashboard.user.email_verified, false);
+
+  const resend = await postJson(base, '/api/user/email-verification/resend', {
+    sessionToken: login.data.session_token
+  });
+  assert.equal(resend.status, 200);
+  assert.equal(resend.data.verification_email_sent, true);
+  assert.equal(mailer.sent.length, 1);
+
+  const passwordChange = await postJson(base, '/api/user/password', {
+    sessionToken: login.data.session_token,
+    currentPassword: 'password123',
+    newPassword: 'betterpass123',
+    newPasswordConfirm: 'betterpass123'
+  });
+  assert.equal(passwordChange.status, 200);
+  assert.equal(verifyPassword('betterpass123', store.getUser('riley').password_hash), true);
+
+  await close();
+  mailer.restore();
 });
 
 test('privacy policy includes user-risk and availability language', async () => {
