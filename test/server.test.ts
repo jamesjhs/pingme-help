@@ -285,3 +285,34 @@ test('privacy policy includes user-risk and availability language', async () => 
 
   await close();
 });
+
+test('internal request errors are emitted to CLI logs with route context', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const { base, store, close } = await startServer(makeConfig(tempDir));
+  const originalConsoleError = console.error;
+  const captured = [];
+  console.error = (...args) => {
+    captured.push(args.join(' '));
+  };
+
+  try {
+    store.getTotalUsers = () => {
+      throw new Error('simulated failure for diagnostics');
+    };
+
+    const login = await postJson(base, '/api/login/start', {
+      username: 'admin',
+      password: 'temporary_cleartext_password'
+    });
+
+    assert.equal(login.status, 500);
+    assert.equal(login.data.ok, false);
+    assert.equal(login.data.error, 'Server error');
+    const logs = captured.join('\n');
+    assert.match(logs, /\/api\/login\/start/);
+    assert.match(logs, /simulated failure for diagnostics/);
+  } finally {
+    console.error = originalConsoleError;
+    await close();
+  }
+});

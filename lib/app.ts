@@ -138,6 +138,20 @@ function sendTooManyRequests(response, retryAfterMs) {
   }));
 }
 
+function logRequestError(method, pathName, error, level = 'error') {
+  const type = error && error.constructor ? error.constructor.name : 'Error';
+  const message = error && error.message ? error.message : 'Unknown error';
+  const line = `[${nowIso()}] ${method} ${pathName} failed: ${type}: ${message}`;
+  if (level === 'warn') {
+    console.warn(line);
+    return;
+  }
+  console.error(line);
+  if (error && error.stack) {
+    console.error(error.stack);
+  }
+}
+
 function getRequestBody(request) {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -969,16 +983,20 @@ function createServer({ config, store }) {
 
       notFound(response);
     } catch (error) {
-      if (error.message === 'too large' || error.message === 'invalid json') {
+      const message = error && error.message ? error.message : '';
+      if (message === 'too large' || message === 'invalid json') {
+        logRequestError(method, url.pathname, error, 'warn');
         sendJson(response, 400, { ok: false, error: 'Malformed request' });
         return;
       }
 
-      if (error.message.startsWith('invalid ')) {
+      if (message.startsWith('invalid ')) {
+        logRequestError(method, url.pathname, error, 'warn');
         sendJson(response, 400, { ok: false, error: 'Invalid input' });
         return;
       }
 
+      logRequestError(method, url.pathname, error, 'error');
       sendJson(response, 500, { ok: false, error: 'Server error' });
     }
   });
