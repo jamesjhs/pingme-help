@@ -101,9 +101,15 @@ textarea {
 
 .tab-row {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+@media (min-width: 720px) {
+  .tab-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .tab-button,
@@ -260,6 +266,13 @@ textarea {
 
 .prose-card h2 {
   margin-top: 1.4rem;
+}
+
+#user-codeword-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.6rem;
 }
 
 @media (min-width: 768px) {
