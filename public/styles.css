@@ -157,6 +157,32 @@ textarea {
   box-shadow: 0 8px 24px rgba(91, 140, 255, 0.18);
 }
 
+#tab-btn-send {
+  background: rgba(255, 120, 120, 0.16);
+  border-color: rgba(255, 120, 120, 0.32);
+  color: rgba(255, 188, 188, 0.95);
+}
+
+#tab-btn-send.is-active {
+  background: rgba(255, 94, 94, 0.28);
+  border-color: rgba(255, 94, 94, 0.5);
+  color: #fff3f3;
+  box-shadow: 0 8px 24px rgba(255, 94, 94, 0.2);
+}
+
+#tab-btn-check {
+  background: rgba(95, 220, 140, 0.16);
+  border-color: rgba(95, 220, 140, 0.32);
+  color: rgba(185, 255, 209, 0.95);
+}
+
+#tab-btn-check.is-active {
+  background: rgba(70, 205, 120, 0.3);
+  border-color: rgba(70, 205, 120, 0.5);
+  color: #effff5;
+  box-shadow: 0 8px 24px rgba(70, 205, 120, 0.22);
+}
+
 .stack-form {
   display: grid;
   gap: 0.9rem;
