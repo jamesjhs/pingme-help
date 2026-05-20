@@ -546,38 +546,48 @@ function createServer({ config, store }) {
           return;
         }
 
-        const username = normalizeUsername(payload.username);
+        const loginEmail = normalizeEmail(payload.email);
+        const legacyUsername = normalizeUsername(payload.username);
+        const username = loginEmail ? '' : legacyUsername;
         const password = normalizePassword(payload.password);
+        if (!password || (!loginEmail && !username)) {
+          sendJson(response, 400, { ok: false, error: 'Invalid input' });
+          return;
+        }
 
-        const lockState = lockout.check('login:' + username);
+        const lockIdentifier = loginEmail || username;
+        const lockState = lockout.check('login:' + lockIdentifier);
         if (!lockState.allowed) {
           sendTooManyRequests(response, lockState.retryAfterMs);
           return;
         }
 
         let role = 'user';
-        let user = store.getUser(username);
+        let user = loginEmail ? store.getUserByEmail(loginEmail) : store.getUser(username);
+        let resolvedUsername = user && user.username ? user.username : username;
 
-        if (secureCompareText(username, config.adminUser)) {
+        if (!loginEmail && secureCompareText(username, config.adminUser)) {
           role = 'admin';
+          resolvedUsername = config.adminUser;
           const adminPasswordHash = store.getAdminPasswordHash();
           const valid = adminPasswordHash
             ? verifyPassword(password, adminPasswordHash)
             : secureCompareText(password, config.adminPass);
           if (!valid) {
-            lockout.recordFailure('login:' + username);
+            lockout.recordFailure('login:' + lockIdentifier);
             sendJson(response, 401, { ok: false, error: 'Invalid credentials' });
             return;
           }
         } else {
           if (!user || !verifyPassword(password, user.password_hash)) {
-            lockout.recordFailure('login:' + username);
+            lockout.recordFailure('login:' + lockIdentifier);
             sendJson(response, 401, { ok: false, error: 'Invalid credentials' });
             return;
           }
+          resolvedUsername = user.username;
         }
 
-        lockout.recordSuccess('login:' + username);
+        lockout.recordSuccess('login:' + lockIdentifier);
 
         const twofaEnabled = role === 'admin'
           ? store.getSetting('admin_twofa_enabled', 'false') === 'true'
@@ -595,7 +605,7 @@ function createServer({ config, store }) {
           const code = randomCode();
           const challengeId = randomId();
           loginChallenges.set(challengeId, {
-            username,
+            username: resolvedUsername,
             role,
             codeHash: hashPassword(code),
             expiresAt: Date.now() + 10 * 60 * 1000
@@ -610,14 +620,15 @@ function createServer({ config, store }) {
           sendJson(response, 200, {
             ok: true,
             requires_2fa: true,
-            challenge_id: challengeId
+            challenge_id: challengeId,
+            username: resolvedUsername
           });
           return;
         }
 
         const sessionToken = randomId();
         const payloadSession = {
-          username,
+          username: resolvedUsername,
           role,
           type: role === 'admin' ? 'admin' : 'user'
         };
@@ -628,10 +639,11 @@ function createServer({ config, store }) {
           requires_2fa: false,
           session_token: sessionToken,
           role,
+          username: resolvedUsername,
           dashboard: {
             total_users: role === 'admin' ? store.getTotalUsers() : undefined,
             smtp: role === 'admin' ? store.getSmtpSettings(config) : undefined,
-            user: role === 'user' ? buildUserDashboard(store, username) : undefined
+            user: role === 'user' ? buildUserDashboard(store, resolvedUsername) : undefined
           }
         });
         return;
@@ -661,6 +673,7 @@ function createServer({ config, store }) {
           ok: true,
           session_token: sessionToken,
           role: challenge.role,
+          username: challenge.username,
           dashboard: {
             total_users: challenge.role === 'admin' ? store.getTotalUsers() : undefined,
             smtp: challenge.role === 'admin' ? store.getSmtpSettings(config) : undefined,

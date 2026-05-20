@@ -63,7 +63,6 @@ function renderHomePage(siteKey) {
       </section>
 
       <section id="home-tabs" class="tabs card" aria-label="Homepage actions">
-        <p class="eyebrow">What would you like to do?</p>
         <div class="tab-row" role="tablist">
           <button class="tab-button" type="button" id="tab-btn-send" data-tab-target="send-panel" role="tab" aria-selected="false" aria-controls="send-panel">Send a Ping</button>
           <button class="tab-button" type="button" id="tab-btn-register" data-tab-target="register-panel" role="tab" aria-selected="false" aria-controls="register-panel">Register</button>
@@ -91,40 +90,38 @@ function renderHomePage(siteKey) {
 
         <section id="register-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-register" hidden>
           <form id="register-form" class="stack-form" novalidate>
-            <label>
-              <span>Generated Username</span>
-              <div class="input-action-row">
-                <input id="register-username" name="username" type="text" maxlength="32" required autocomplete="off" readonly ${CA}>
-                <button id="regenerate-username-button" class="icon-button" type="button" aria-label="Generate another username">
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="M15.5 5.5A7 7 0 0 0 5.7 8H3l3.3-3.3L9.6 8H7.8a5 5 0 1 1 1 9.9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
-                    <path d="M8.5 18.5A7 7 0 0 0 18.3 16H21l-3.3 3.3L14.4 16h1.8a5 5 0 1 1-1-9.9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
-                  </svg>
-                </button>
-              </div>
-            </label>
+            <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
             <label><span>Confirm Password</span><input name="passwordConfirm" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
-            <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
-            <button class="primary-button" type="submit" data-public-action>Register</button>
+            <div class="register-action-row">
+              <div class="register-username-box">
+                <span class="register-username-label">Generated Username</span>
+                <div class="input-action-row">
+                  <input id="register-username" name="username" type="text" maxlength="32" required autocomplete="off" readonly ${CA}>
+                  <button id="regenerate-username-button" class="icon-button" type="button" aria-label="Generate another username">
+                    <span aria-hidden="true">🔄</span>
+                  </button>
+                </div>
+              </div>
+              <button class="primary-button" type="submit" data-public-action>Register</button>
+            </div>
           </form>
           <div id="register-feedback" class="feedback" aria-live="polite"></div>
         </section>
 
         <section id="login-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-login" hidden>
           <form id="login-form" class="stack-form" novalidate>
-            <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
+            <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
-            <button class="primary-button" type="submit" data-public-action>Login</button>
+            <div class="login-actions-row">
+              <button class="primary-button" type="submit" data-public-action>Login</button>
+              <button id="forgot-password-button" class="primary-button" type="button" data-public-action>Forgot Password</button>
+            </div>
           </form>
           <form id="login-2fa-form" class="stack-form hidden" novalidate>
             <label><span>Secret Code</span><input name="code" type="text" maxlength="6" required autocomplete="one-time-code" ${CA}></label>
             <input name="challengeId" type="hidden" value="">
             <button class="primary-button" type="submit" data-public-action>Verify 2FA</button>
-          </form>
-          <form id="password-reset-request-form" class="stack-form" novalidate>
-            <label><span>Forgot password? Email address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
-            <button class="primary-button" type="submit" data-public-action>Send Reset Email</button>
           </form>
           <form id="password-reset-confirm-form" class="stack-form hidden" novalidate>
             <input name="challengeId" type="hidden" value="">
@@ -157,7 +154,6 @@ function renderHomePage(siteKey) {
         </section>
 
         <div class="home-tabs-verify" id="site-verification">
-          <p class="eyebrow">Security verification</p>
           <div id="turnstile-global-widget"></div>
         </div>
       </section>

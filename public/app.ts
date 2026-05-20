@@ -365,7 +365,7 @@
     const loginForm = document.getElementById('login-form');
     const login2faForm = document.getElementById('login-2fa-form');
     const loginFeedback = document.getElementById('login-feedback');
-    const resetRequestForm = document.getElementById('password-reset-request-form');
+    const forgotPasswordButton = document.getElementById('forgot-password-button');
     const resetConfirmForm = document.getElementById('password-reset-confirm-form');
     const checkPingForm = document.getElementById('check-ping-form');
     const checkPingFeedback = document.getElementById('check-ping-feedback');
@@ -417,12 +417,14 @@
       refreshUserCodeword();
       setMessage(userDashboardFeedback, message, 'success');
     };
+    let pendingLoginUsername = '';
 
     if (registerForm) {
       const suggest = async () => {
         try {
           regenerateUsernameButton.disabled = true;
-          registerUsername.value = await fetchRegisterSuggestion();
+          const suggestedUsername = await fetchRegisterSuggestion();
+          registerUsername.value = suggestedUsername;
         } catch (error) {
           setMessage(registerFeedback, error.message, 'error');
         } finally {
@@ -522,6 +524,7 @@
       try {
         const payload = attachTurnstileSession(formPayload(loginForm));
         const data = await postJson('/api/login/start', payload);
+        pendingLoginUsername = data.username || '';
         if (data.requires_2fa) {
           show(login2faForm, true);
           login2faForm.elements.challengeId.value = data.challenge_id;
@@ -532,12 +535,12 @@
           currentSession = {
             sessionToken: data.session_token,
             role: data.role,
-            username: payload.username
+            username: data.username || 'admin'
           };
           applyAdminDashboard(data);
           setMessage(adminDashboardFeedback, 'Logged in.', 'success');
         } else {
-          completeUserLogin(data, payload.username);
+          completeUserLogin(data, data.username);
         }
         setMessage(loginFeedback, 'Logged in.', 'success');
       } catch (error) {
@@ -562,12 +565,12 @@
           currentSession = {
             sessionToken: data.session_token,
             role: data.role,
-            username: loginForm.elements.username.value
+            username: data.username || pendingLoginUsername || 'admin'
           };
           applyAdminDashboard(data);
           setMessage(adminDashboardFeedback, 'Logged in.', 'success');
         } else {
-          completeUserLogin(data, loginForm.elements.username.value);
+          completeUserLogin(data, data.username || pendingLoginUsername);
         }
         setMessage(loginFeedback, 'Logged in.', 'success');
       } catch (error) {
@@ -580,12 +583,19 @@
       }
     });
 
-    resetRequestForm?.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      setBusy(resetRequestForm, true);
+    forgotPasswordButton?.addEventListener('click', async () => {
+      if (!loginForm) {
+        return;
+      }
+      const email = String(loginForm.elements.email?.value || '').trim();
+      if (!email) {
+        setMessage(loginFeedback, 'Enter your email address first.', 'error');
+        return;
+      }
+      forgotPasswordButton.disabled = true;
       setMessage(loginFeedback, 'Sending reset code…');
       try {
-        const payload = attachTurnstileSession(formPayload(resetRequestForm));
+        const payload = attachTurnstileSession({ email });
         const data = await postJson('/api/password-reset/request', payload);
         if (data.challenge_id) {
           show(resetConfirmForm, true);
@@ -598,7 +608,7 @@
           resetTurnstileSession();
         }
       } finally {
-        setBusy(resetRequestForm, false);
+        forgotPasswordButton.disabled = false;
       }
     });
 

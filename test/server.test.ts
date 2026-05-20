@@ -243,7 +243,7 @@ test('user dashboard can resend email verification and change password', async (
   });
 
   const login = await postJson(base, '/api/login/start', {
-    username: 'riley',
+    email: 'riley@example.com',
     password: 'password123'
   });
 

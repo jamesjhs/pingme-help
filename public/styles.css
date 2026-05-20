@@ -192,6 +192,32 @@ textarea {
   height: 1.5rem;
 }
 
+.icon-button span {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.register-action-row,
+.login-actions-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.register-username-box {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.register-username-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 textarea {
   resize: vertical;
   min-height: 6.5rem;
