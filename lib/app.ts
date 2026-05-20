@@ -547,8 +547,7 @@ function createServer({ config, store }) {
         }
 
         const loginEmail = normalizeEmail(payload.email);
-        const legacyUsername = normalizeUsername(payload.username);
-        const username = loginEmail ? '' : legacyUsername;
+        const username = loginEmail ? '' : normalizeUsername(payload.username);
         const password = normalizePassword(payload.password);
         if (!password || (!loginEmail && !username)) {
           sendJson(response, 400, { ok: false, error: 'Invalid input' });
