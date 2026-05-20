@@ -13,7 +13,7 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="description" content="Private readiness check-ins for people you trust.">
-  <meta name="theme-color" content="#1463ff">
+  <meta name="theme-color" content="#070b12">
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
