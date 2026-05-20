@@ -241,7 +241,7 @@ async function sendMail(config, store, { to, subject, text }) {
     return false;
   }
   await transporter.sendMail({
-    from: smtp.user,
+    from: config.smtpFrom || smtp.user,
     to,
     subject,
     text

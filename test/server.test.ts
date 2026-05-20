@@ -23,6 +23,7 @@ function makeConfig(tempDir, overrides = {}) {
     smtpHost: '',
     smtpPort: 587,
     smtpUser: '',
+    smtpFrom: '',
     smtpPass: '',
     smtpStartTls: true,
     ...overrides
@@ -119,6 +120,32 @@ test('registration auto logs in and marks the email unverified until the magic l
   assert.equal(verifyResponse.status, 200);
   assert.match(verifyHtml, /Email verified/i);
   assert.ok(store.getUser(suggestion.data.username).email_verified_at);
+
+  await close();
+  mailer.restore();
+});
+
+test('registration email uses SMTP_FROM when configured', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const mailer = mockMailer();
+  const { base, close } = await startServer(makeConfig(tempDir, {
+    smtpHost: 'smtp.example.com',
+    smtpUser: 'mailer',
+    smtpFrom: 'no-reply@example.com',
+    smtpPass: 'secret'
+  }));
+
+  const suggestion = await postJson(base, '/api/register/suggest', {});
+  const register = await postJson(base, '/api/register', {
+    username: suggestion.data.username,
+    password: 'password123',
+    passwordConfirm: 'password123',
+    email: 'user@example.com'
+  });
+
+  assert.equal(register.status, 200);
+  assert.equal(mailer.sent.length, 1);
+  assert.equal(mailer.sent[0].from, 'no-reply@example.com');
 
   await close();
   mailer.restore();

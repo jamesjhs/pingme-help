@@ -47,6 +47,7 @@ function loadConfig() {
     smtpHost: readOptional('SMTP_HOST'),
     smtpPort: parsePort(process.env.SMTP_PORT, 587),
     smtpUser: readOptional('SMTP_USER'),
+    smtpFrom: readOptional('SMTP_FROM'),
     smtpPass: readOptional('SMTP_PASS'),
     smtpStartTls: parseBoolean(process.env.SMTP_STARTTLS, true)
   };

@@ -39,6 +39,7 @@ ADMIN_PASS=temporary_cleartext_password
 SMTP_HOST=
 SMTP_PORT=
 SMTP_USER=
+SMTP_FROM=
 SMTP_PASS=
 SMTP_STARTTLS=true
 ```
