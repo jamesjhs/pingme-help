@@ -26,9 +26,125 @@ function readAsset(filePath) {
   return fs.readFileSync(path.join(__dirname, '..', 'public', filePath));
 }
 
+const APP_ICON_SVG = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#13213b"/>
+      <stop offset="100%" stop-color="#080d16"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" x2="100%" y1="0%" y2="0%">
+      <stop offset="0%" stop-color="#5b8cff"/>
+      <stop offset="100%" stop-color="#28c184"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
+  <rect x="86" y="140" width="340" height="236" rx="56" fill="#0f1728" stroke="#9eb5d833" stroke-width="12"/>
+  <path d="M160 258h193" stroke="url(#accent)" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="392" cy="258" r="28" fill="#5b8cff"/>
+  <path d="M160 316h110" stroke="#9aa8c1" stroke-width="18" stroke-linecap="round"/>
+</svg>`,
+  'utf8'
+);
+
+const APP_ICON_MASKABLE_SVG = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#090f1a"/>
+  <rect x="96" y="96" width="320" height="320" rx="92" fill="#101a2d"/>
+  <path d="M172 256h170" stroke="#5b8cff" stroke-width="30" stroke-linecap="round"/>
+  <circle cx="358" cy="256" r="30" fill="#28c184"/>
+</svg>`,
+  'utf8'
+);
+
+const WEB_MANIFEST = Buffer.from(
+  JSON.stringify({
+    id: '/',
+    name: 'PingMe.help',
+    short_name: 'PingMe',
+    description: 'Private readiness check-ins for people you trust.',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait-primary',
+    background_color: '#070b12',
+    theme_color: '#070b12',
+    icons: [
+      {
+        src: '/assets/icon.svg',
+        type: 'image/svg+xml',
+        sizes: 'any',
+        purpose: 'any'
+      },
+      {
+        src: '/assets/icon-maskable.svg',
+        type: 'image/svg+xml',
+        sizes: 'any',
+        purpose: 'maskable'
+      }
+    ]
+  }),
+  'utf8'
+);
+
+const SERVICE_WORKER = Buffer.from(
+  `const CACHE_NAME = 'pingme-help-shell-v1';
+const SHELL_FILES = ['/', '/privacy', '/assets/styles.css', '/assets/app.js', '/manifest.webmanifest', '/assets/icon.svg', '/assets/icon-maskable.svg'];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_FILES)).then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  if (request.method !== 'GET') {
+    return;
+  }
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
+    return;
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/'))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const networkFetch = fetch(request).then((response) => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => cached);
+      return cached || networkFetch;
+    })
+  );
+});`,
+  'utf8'
+);
+
 const ASSETS = {
   '/assets/styles.css': { body: readAsset('styles.css'), type: 'text/css; charset=utf-8' },
-  '/assets/app.js': { body: readAsset('app.js'), type: 'application/javascript; charset=utf-8' }
+  '/assets/app.js': { body: readAsset('app.js'), type: 'application/javascript; charset=utf-8' },
+  '/assets/icon.svg': { body: APP_ICON_SVG, type: 'image/svg+xml; charset=utf-8' },
+  '/assets/icon-maskable.svg': { body: APP_ICON_MASKABLE_SVG, type: 'image/svg+xml; charset=utf-8' },
+  '/manifest.webmanifest': { body: WEB_MANIFEST, type: 'application/manifest+json; charset=utf-8' },
+  '/sw.js': { body: SERVICE_WORKER, type: 'application/javascript; charset=utf-8' }
 };
 
 const CSP = [

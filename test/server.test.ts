@@ -83,6 +83,25 @@ test('readyz returns service metadata', async () => {
   await close();
 });
 
+test('pwa manifest and service worker are served', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const { base, close } = await startServer(makeConfig(tempDir));
+
+  const manifestResponse = await fetch(`${base}/manifest.webmanifest`);
+  const manifest = await manifestResponse.json();
+  assert.equal(manifestResponse.status, 200);
+  assert.equal(manifest.display, 'standalone');
+  assert.equal(Array.isArray(manifest.icons), true);
+  assert.ok(manifest.icons.some((icon) => icon.src === '/assets/icon.svg'));
+
+  const workerResponse = await fetch(`${base}/sw.js`);
+  const workerText = await workerResponse.text();
+  assert.equal(workerResponse.status, 200);
+  assert.match(workerText, /CACHE_NAME/);
+
+  await close();
+});
+
 test('registration auto logs in and marks the email unverified until the magic link is opened', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
   const mailer = mockMailer();

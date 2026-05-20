@@ -7,6 +7,46 @@
   let turnstileSessionExpiresAt = 0;
   let currentSession = null;
   let pingerSession = null;
+  let installPromptEvent = null;
+
+  async function setupPwaShell() {
+    const installButton = document.getElementById('install-app-button');
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (standalone) {
+      document.body.classList.add('pwa-standalone');
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      installPromptEvent = event;
+      if (installButton) {
+        show(installButton, true);
+      }
+    });
+
+    window.addEventListener('appinstalled', () => {
+      installPromptEvent = null;
+      if (installButton) {
+        show(installButton, false);
+      }
+    });
+
+    installButton?.addEventListener('click', async () => {
+      if (!installPromptEvent) {
+        return;
+      }
+      installButton.disabled = true;
+      installPromptEvent.prompt();
+      await installPromptEvent.userChoice.catch(() => null);
+      installPromptEvent = null;
+      show(installButton, false);
+      installButton.disabled = false;
+    });
+  }
 
   function setMessage(element, message, tone = 'info') {
     if (!element) {
@@ -928,6 +968,7 @@
     refreshUserCodeword();
   }
 
+  setupPwaShell();
   mountTurnstile();
 
   if (view === 'home') {

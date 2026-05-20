@@ -14,11 +14,17 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="description" content="Private readiness check-ins for people you trust.">
   <meta name="theme-color" content="#070b12">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PingMe">
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="turnstile-site-key" content="${escapeHtml(turnstileSiteKey)}">
   <title>${safeTitle}</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
   <link rel="stylesheet" href="/assets/styles.css">
   ${hasTurnstile ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>' : ''}
   <script src="/assets/app.js" defer></script>
@@ -27,7 +33,10 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
   <div class="shell">
     <header class="topbar">
       <a class="brand" href="/">pingme.help</a>
-      <a class="privacy-link" href="/privacy">Privacy Policy</a>
+      <div class="topbar-actions">
+        <button id="install-app-button" class="icon-button install-app-button hidden" type="button" aria-label="Install app">⤓</button>
+        <a class="privacy-link" href="/privacy">Privacy Policy</a>
+      </div>
     </header>
     <main class="page">${content}</main>
     <footer class="footer">
