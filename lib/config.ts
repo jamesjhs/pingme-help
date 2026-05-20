@@ -4,7 +4,7 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const APP_VERSION = 'v0.0.1';
+const APP_VERSION = 'v0.1.0';
 const SERVICE_NAME = 'pingme.help';
 const ROOT_DIR = path.resolve(__dirname, '..');
 
@@ -47,6 +47,7 @@ function loadConfig() {
     smtpHost: readOptional('SMTP_HOST'),
     smtpPort: parsePort(process.env.SMTP_PORT, 587),
     smtpUser: readOptional('SMTP_USER'),
+    smtpFrom: readOptional('SMTP_FROM'),
     smtpPass: readOptional('SMTP_PASS'),
     smtpStartTls: parseBoolean(process.env.SMTP_STARTTLS, true)
   };

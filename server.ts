@@ -12,8 +12,10 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-process.on('unhandledRejection', () => {
-  console.error('Unhandled promise rejection — exiting');
+process.on('unhandledRejection', (reason) => {
+  const type = reason && reason.constructor ? reason.constructor.name : 'Error';
+  const message = reason && reason.message ? reason.message : 'No reason provided';
+  console.error(`Unhandled promise rejection [${type}] ${message} — exiting`);
   process.exit(1);
 });
 
@@ -41,7 +43,9 @@ try {
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
-} catch {
-  console.error('Boot failure');
+} catch (error) {
+  const type = error && error.constructor ? error.constructor.name : 'Error';
+  const message = error && error.message ? error.message : 'Unknown error';
+  console.error(`Boot failure [${type}] ${message}`);
   process.exit(1);
 }

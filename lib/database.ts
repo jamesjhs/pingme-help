@@ -24,6 +24,9 @@ class DatabaseStore {
         username TEXT PRIMARY KEY,
         password_hash TEXT NOT NULL,
         email TEXT,
+        email_verified_at TEXT,
+        email_verification_token_hash TEXT,
+        email_verification_expires_at TEXT,
         role TEXT NOT NULL DEFAULT 'user',
         twofa_enabled INTEGER NOT NULL DEFAULT 0,
         status INTEGER NOT NULL DEFAULT 1,
@@ -53,6 +56,9 @@ class DatabaseStore {
     `);
 
     this.ensureUserColumn('email', 'TEXT');
+    this.ensureUserColumn('email_verified_at', 'TEXT');
+    this.ensureUserColumn('email_verification_token_hash', 'TEXT');
+    this.ensureUserColumn('email_verification_expires_at', 'TEXT');
     this.ensureUserColumn("role", "TEXT NOT NULL DEFAULT 'user'");
     this.ensureUserColumn('twofa_enabled', 'INTEGER NOT NULL DEFAULT 0');
     this.ensureUserColumn('created_at', "TEXT NOT NULL DEFAULT ''");
@@ -73,18 +79,27 @@ class DatabaseStore {
       'UPDATE users SET burn_message = NULL, message_viewed_flag = 1 WHERE username = ?'
     );
 
-    this.statements = {
-      getUser: this.db.prepare(`
-        SELECT username, password_hash, email, role, twofa_enabled, status, burn_message,
+      this.statements = {
+        getUser: this.db.prepare(`
+        SELECT username, password_hash, email, email_verified_at, email_verification_token_hash,
+               email_verification_expires_at, role, twofa_enabled, status, burn_message,
                last_status_update, last_viewer_access, message_viewed_flag, created_at
         FROM users
         WHERE username = ?
       `),
+      getUserByEmail: this.db.prepare(`
+        SELECT username, password_hash, email, email_verified_at, email_verification_token_hash,
+               email_verification_expires_at, role, twofa_enabled, status, burn_message,
+               last_status_update, last_viewer_access, message_viewed_flag, created_at
+        FROM users
+        WHERE email = ?
+      `),
       registerUser: this.db.prepare(`
         INSERT INTO users (
-          username, password_hash, email, role, twofa_enabled, status,
-          burn_message, last_status_update, last_viewer_access, message_viewed_flag, created_at
-        ) VALUES (?, ?, ?, ?, 0, 1, NULL, ?, NULL, 0, ?)
+          username, password_hash, email, email_verified_at, email_verification_token_hash,
+          email_verification_expires_at, role, twofa_enabled, status, burn_message,
+          last_status_update, last_viewer_access, message_viewed_flag, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, NULL, ?, NULL, 0, ?)
       `),
       updateUserCredentials: this.db.prepare(`
         UPDATE users
@@ -163,7 +178,17 @@ class DatabaseStore {
         FROM admin_settings
         WHERE setting_key IN ('smtp_host','smtp_port','smtp_user','smtp_pass','smtp_starttls')
       `),
-      setUserTwofa: this.db.prepare('UPDATE users SET twofa_enabled = ?, email = ? WHERE username = ?'),
+      setUserTwofa: this.db.prepare(`
+        UPDATE users
+        SET twofa_enabled = ?, email = ?, email_verified_at = ?, email_verification_token_hash = ?,
+            email_verification_expires_at = ?
+        WHERE username = ?
+      `),
+      markEmailVerified: this.db.prepare(`
+        UPDATE users
+        SET email_verified_at = ?, email_verification_token_hash = NULL, email_verification_expires_at = NULL
+        WHERE username = ?
+      `),
       updatePassword: this.db.prepare('UPDATE users SET password_hash = ? WHERE username = ?')
     };
   }
@@ -172,8 +197,31 @@ class DatabaseStore {
     return this.statements.getUser.get(username) || null;
   }
 
-  registerUser({ username, passwordHash, email, role = 'user', createdAt }) {
-    this.statements.registerUser.run(username, passwordHash, email, role, createdAt, createdAt);
+  getUserByEmail(email) {
+    return this.statements.getUserByEmail.get(email) || null;
+  }
+
+  registerUser({
+    username,
+    passwordHash,
+    email,
+    emailVerifiedAt = null,
+    emailVerificationTokenHash = null,
+    emailVerificationExpiresAt = null,
+    role = 'user',
+    createdAt
+  }) {
+    this.statements.registerUser.run(
+      username,
+      passwordHash,
+      email,
+      emailVerifiedAt,
+      emailVerificationTokenHash,
+      emailVerificationExpiresAt,
+      role,
+      createdAt,
+      createdAt
+    );
   }
 
   saveUserStatus({ username, status, burnMessage, lastStatusUpdate }) {
@@ -266,8 +314,19 @@ class DatabaseStore {
     this.statements.saveSmtpSetting.run(key, String(value));
   }
 
-  setUserTwofa(username, enabled, email) {
-    this.statements.setUserTwofa.run(enabled ? 1 : 0, email || null, username);
+  setUserTwofa(username, enabled, email, emailVerifiedAt = null, emailVerificationTokenHash = null, emailVerificationExpiresAt = null) {
+    this.statements.setUserTwofa.run(
+      enabled ? 1 : 0,
+      email || null,
+      emailVerifiedAt,
+      emailVerificationTokenHash,
+      emailVerificationExpiresAt,
+      username
+    );
+  }
+
+  markEmailVerified(username, verifiedAt) {
+    this.statements.markEmailVerified.run(verifiedAt, username);
   }
 
   updatePassword(username, passwordHash) {

@@ -13,12 +13,18 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="description" content="Private readiness check-ins for people you trust.">
-  <meta name="theme-color" content="#1463ff">
+  <meta name="theme-color" content="#070b12">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PingMe">
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="turnstile-site-key" content="${escapeHtml(turnstileSiteKey)}">
   <title>${safeTitle}</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
   <link rel="stylesheet" href="/assets/styles.css">
   ${hasTurnstile ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>' : ''}
   <script src="/assets/app.js" defer></script>
@@ -27,11 +33,14 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
   <div class="shell">
     <header class="topbar">
       <a class="brand" href="/">pingme.help</a>
-      <a class="privacy-link" href="/privacy">Privacy Policy</a>
+      <div class="topbar-actions">
+        <button id="install-app-button" class="icon-button install-app-button hidden" type="button" aria-label="Install app">⤓</button>
+        <a class="privacy-link" href="/privacy">Privacy Policy</a>
+      </div>
     </header>
     <main class="page">${content}</main>
     <footer class="footer">
-      <div>&copy;PingMe.HELP 2026 | v0.0.1</div>
+      <div>&copy;jahosi.co.uk 2026 | v0.1.0</div>
       <a href="/privacy">Privacy Policy</a>
     </footer>
   </div>
@@ -45,25 +54,34 @@ function renderHomePage(siteKey) {
     view: 'home',
     turnstileSiteKey: siteKey,
     content: `
-      
-
-      <section class="card" id="site-verification">
-        <p class="eyebrow">Security verification</p>
-        <div id="turnstile-global-widget"></div>
-        <p id="turnstile-global-feedback" class="feedback" aria-live="polite"></p>
+      <section id="quick-status-card" class="card hidden" aria-live="polite">
+        <p class="eyebrow">Quick check-in</p>
+        <form id="quick-status-form" class="stack-form" novalidate>
+          <label>
+            <span>Burn Message <small>(optional)</small></span>
+            <textarea name="message" id="quick-burn-message-input" maxlength="100" rows="3" autocomplete="off" ${CA}></textarea>
+            <span class="char-count" id="quick-burn-char-count" aria-live="polite">100 characters remaining</span>
+          </label>
+          <input type="hidden" name="status" value="ok">
+          <div class="status-actions">
+            <button class="status-button ok" type="button" data-quick-status-value="ok">I&#39;m OK</button>
+            <button class="status-button not-ok" type="button" data-quick-status-value="not_ok">I&#39;m Not OK</button>
+          </div>
+        </form>
+        <div id="quick-status-feedback" class="feedback" aria-live="polite"></div>
       </section>
 
-      <section class="tabs card" aria-label="Homepage tabs">
+      <section id="home-tabs" class="tabs card" aria-label="Homepage actions">
         <div class="tab-row" role="tablist">
-          <button class="tab-button is-active" type="button" id="tab-btn-send" data-tab-target="send-panel" role="tab" aria-selected="true" aria-controls="send-panel">Send a Ping</button>
+          <button class="tab-button" type="button" id="tab-btn-send" data-tab-target="send-panel" role="tab" aria-selected="false" aria-controls="send-panel">Send a Ping</button>
           <button class="tab-button" type="button" id="tab-btn-register" data-tab-target="register-panel" role="tab" aria-selected="false" aria-controls="register-panel">Register</button>
           <button class="tab-button" type="button" id="tab-btn-login" data-tab-target="login-panel" role="tab" aria-selected="false" aria-controls="login-panel">Login</button>
           <button class="tab-button" type="button" id="tab-btn-check" data-tab-target="check-panel" role="tab" aria-selected="false" aria-controls="check-panel">Check a Ping</button>
         </div>
 
-        <section id="send-panel" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-btn-send">
+        <section id="send-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-send" hidden>
           <form id="send-ping-form" class="stack-form" novalidate>
-            <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
+            <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
             <label>
               <span>Burn Message <small>(optional)</small></span>
@@ -72,8 +90,8 @@ function renderHomePage(siteKey) {
             </label>
             <input type="hidden" name="status" value="ok">
             <div class="status-actions">
-              <button class="status-button ok" type="button" data-status-value="ok">I&#39;m OK</button>
-              <button class="status-button not-ok" type="button" data-status-value="not_ok">I&#39;m Not OK</button>
+              <button class="status-button ok" type="button" data-status-value="ok" data-public-action>I&#39;m OK</button>
+              <button class="status-button not-ok" type="button" data-status-value="not_ok" data-public-action>I&#39;m Not OK</button>
             </div>
           </form>
           <div id="send-ping-feedback" class="feedback" aria-live="polite"></div>
@@ -81,39 +99,44 @@ function renderHomePage(siteKey) {
 
         <section id="register-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-register" hidden>
           <form id="register-form" class="stack-form" novalidate>
-            <label>
-              <span>Generated Username</span>
-              <input id="register-username" name="username" type="text" maxlength="32" required autocomplete="off" readonly ${CA}>
-              <small><a href="#" id="regenerate-username-link">Regenerate</a></small>
-            </label>
+            <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
             <label><span>Confirm Password</span><input name="passwordConfirm" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
-            <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
-            <button class="primary-button" type="submit">Register</button>
+            <div class="register-action-row">
+              <div class="register-username-box">
+                <span class="register-username-label">Generated Username</span>
+                <div class="input-action-row">
+                  <input id="register-username" name="username" type="text" maxlength="32" required autocomplete="off" readonly ${CA}>
+                  <button id="regenerate-username-button" class="icon-button" type="button" aria-label="Generate another username">
+                    <span aria-hidden="true">🔄</span>
+                  </button>
+                </div>
+              </div>
+              <button class="primary-button" type="submit" data-public-action>Register</button>
+            </div>
           </form>
           <div id="register-feedback" class="feedback" aria-live="polite"></div>
         </section>
 
         <section id="login-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-login" hidden>
           <form id="login-form" class="stack-form" novalidate>
-            <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
+            <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
-            <button class="primary-button" type="submit">Login</button>
+            <div class="login-actions-row">
+              <button class="primary-button" type="submit" data-public-action>Login</button>
+              <button id="forgot-password-button" class="primary-button" type="button" data-public-action>Forgot Password</button>
+            </div>
           </form>
           <form id="login-2fa-form" class="stack-form hidden" novalidate>
             <label><span>Secret Code</span><input name="code" type="text" maxlength="6" required autocomplete="one-time-code" ${CA}></label>
             <input name="challengeId" type="hidden" value="">
-            <button class="primary-button" type="submit">Verify 2FA</button>
-          </form>
-          <form id="password-reset-request-form" class="stack-form" novalidate>
-            <label><span>Forgot password? Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
-            <button class="primary-button" type="submit">Send Reset Code</button>
+            <button class="primary-button" type="submit" data-public-action>Verify 2FA</button>
           </form>
           <form id="password-reset-confirm-form" class="stack-form hidden" novalidate>
             <input name="challengeId" type="hidden" value="">
             <label><span>Reset Code</span><input name="code" type="text" maxlength="6" required autocomplete="one-time-code" ${CA}></label>
             <label><span>New Password</span><input name="newPassword" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
-            <button class="primary-button" type="submit">Reset Password</button>
+            <button class="primary-button" type="submit" data-public-action>Reset Password</button>
           </form>
           <div id="login-feedback" class="feedback" aria-live="polite"></div>
         </section>
@@ -122,7 +145,7 @@ function renderHomePage(siteKey) {
           <form id="check-ping-form" class="stack-form" novalidate>
             <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
             <label><span>Shared Codeword</span><input name="codeword" type="password" maxlength="64" required autocomplete="off" ${CA}></label>
-            <button class="primary-button" type="submit">Check Status</button>
+            <button class="primary-button" type="submit" data-public-action>Check Status</button>
           </form>
           <div id="check-ping-feedback" class="feedback" aria-live="polite"></div>
           <section id="pinger-dashboard" class="card inset-card hidden" aria-live="polite">
@@ -138,12 +161,58 @@ function renderHomePage(siteKey) {
             </div>
           </section>
         </section>
+
+        <div class="home-tabs-verify" id="site-verification">
+          <div id="turnstile-global-widget"></div>
+        </div>
+      </section>
+
+      <section class="card pitch-card" aria-label="About PingMe.help">
+        <p class="eyebrow">Why PingMe.help?</p>
+        <h2 class="pitch-headline">Someone cares if you get home safe.</h2>
+        <p class="pitch-lede">PingMe.help is the private, zero-noise check-in service for people who look out for each other — no apps to install, no accounts to share, no data to sell.</p>
+        <ul class="pitch-features">
+          <li class="pitch-feature">
+            <span class="pitch-icon" aria-hidden="true">🔒</span>
+            <div>
+              <strong>Ping in under a minute</strong>
+              <p>Send a secure status update in seconds. The people you trust always know you're OK — without bombarding them with notifications.</p>
+            </div>
+          </li>
+          <li class="pitch-feature">
+            <span class="pitch-icon" aria-hidden="true">🔥</span>
+            <div>
+              <strong>One-read burn messages</strong>
+              <p>Leave a private note that vanishes the moment it's opened. No copies, no logs, no leaks — ever.</p>
+            </div>
+          </li>
+          <li class="pitch-feature">
+            <span class="pitch-icon" aria-hidden="true">🤝</span>
+            <div>
+              <strong>Trusted access only</strong>
+              <p>Share a codeword with the people you choose. Only they can check your status — nobody else can see a thing.</p>
+            </div>
+          </li>
+          <li class="pitch-feature">
+            <span class="pitch-icon" aria-hidden="true">🚫</span>
+            <div>
+              <strong>No ads. No tracking. No bloat.</strong>
+              <p>Privacy-first by design. We store only what's strictly needed — and nothing more.</p>
+            </div>
+          </li>
+        </ul>
+        <button class="primary-button pitch-cta" type="button" data-open-tab="register-panel">Get started — it&#39;s free &rarr;</button>
       </section>
 
       <section id="user-dashboard" class="card hidden" aria-live="polite">
         <p class="eyebrow">User Dashboard</p>
         <h2>Manage your check-ins and followers</h2>
         <p><strong>Logged in as:</strong> <span data-user="username"></span></p>
+        <p>
+          <strong>Email:</strong>
+          <span data-user="email">—</span>
+          <span data-user="emailVerificationStatus" class="verification-status">unverified</span>
+        </p>
         <p><strong>Last checked by:</strong> <span data-user="lastViewerAccess">Never</span></p>
         <p><strong>Message viewed:</strong> <span data-user="messageViewed">Not viewed</span></p>
 
@@ -151,6 +220,15 @@ function renderHomePage(siteKey) {
           <label><span>2FA Email</span><input name="email" type="email" maxlength="254" autocomplete="email" ${CA}></label>
           <label class="confirm-label"><input type="checkbox" name="enabled"><span>Enable email 2FA for login</span></label>
           <button class="primary-button" type="submit">Save 2FA Settings</button>
+        </form>
+
+        <button id="user-resend-verification" class="primary-button" type="button">Resend Verification Email</button>
+
+        <form id="user-password-form" class="stack-form" novalidate>
+          <label><span>Current Password</span><input name="currentPassword" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
+          <label><span>New Password</span><input name="newPassword" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
+          <label><span>Confirm New Password</span><input name="newPasswordConfirm" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
+          <button class="primary-button" type="submit">Change Password</button>
         </form>
 
         <form id="user-codeword-create-form" class="stack-form" novalidate>
@@ -224,6 +302,9 @@ function renderPrivacyPage(siteKey) {
         <p>pingme.help is built to limit personal data collection, but no online service is risk-free. By using this website you accept that you do so at your own risk, and that any data you choose to store is also at your own risk.</p>
         <h2>What we store</h2>
         <p>We store account usernames, password hashes, account emails, status updates, optional burn messages, and timestamps needed to show recent activity. We may also process and store email-related settings needed to deliver account, invitation, and verification messages.</p>
+        <h2>Browser sessions and verification</h2>
+        <p>During active use the site keeps temporary session tokens in browser memory so the current browser tab can stay signed in and complete protected actions. These tokens are not written to cookies or local storage by the app.</p>
+        <p>If bot protection is enabled, Cloudflare Turnstile is loaded to verify that a visitor is human before public forms can be submitted. That challenge is provided by Cloudflare, which may process challenge-related network and browser metadata under its own terms.</p>
         <h2>Network and email limits</h2>
         <p>Even with encrypted storage and security controls, network providers and email providers may still process IP addresses and delivery metadata outside this site’s direct control. No method can guarantee complete anonymity or permanent availability.</p>
         <h2>Availability and alternatives</h2>

@@ -7,6 +7,7 @@ const { URL } = require('node:url');
 const nodemailer = require('nodemailer');
 const {
   BackoffLockout,
+  escapeHtml,
   hashPassword,
   normalizeEmail,
   normalizePassword,
@@ -25,9 +26,125 @@ function readAsset(filePath) {
   return fs.readFileSync(path.join(__dirname, '..', 'public', filePath));
 }
 
+const APP_ICON_SVG = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#13213b"/>
+      <stop offset="100%" stop-color="#080d16"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" x2="100%" y1="0%" y2="0%">
+      <stop offset="0%" stop-color="#5b8cff"/>
+      <stop offset="100%" stop-color="#28c184"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
+  <rect x="86" y="140" width="340" height="236" rx="56" fill="#0f1728" stroke="#9eb5d833" stroke-width="12"/>
+  <path d="M160 258h193" stroke="url(#accent)" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="392" cy="258" r="28" fill="#5b8cff"/>
+  <path d="M160 316h110" stroke="#9aa8c1" stroke-width="18" stroke-linecap="round"/>
+</svg>`,
+  'utf8'
+);
+
+const APP_ICON_MASKABLE_SVG = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#090f1a"/>
+  <rect x="96" y="96" width="320" height="320" rx="92" fill="#101a2d"/>
+  <path d="M172 256h170" stroke="#5b8cff" stroke-width="30" stroke-linecap="round"/>
+  <circle cx="358" cy="256" r="30" fill="#28c184"/>
+</svg>`,
+  'utf8'
+);
+
+const WEB_MANIFEST = Buffer.from(
+  JSON.stringify({
+    id: '/',
+    name: 'PingMe.help',
+    short_name: 'PingMe',
+    description: 'Private readiness check-ins for people you trust.',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait-primary',
+    background_color: '#070b12',
+    theme_color: '#070b12',
+    icons: [
+      {
+        src: '/assets/icon.svg',
+        type: 'image/svg+xml',
+        sizes: 'any',
+        purpose: 'any'
+      },
+      {
+        src: '/assets/icon-maskable.svg',
+        type: 'image/svg+xml',
+        sizes: 'any',
+        purpose: 'maskable'
+      }
+    ]
+  }),
+  'utf8'
+);
+
+const SERVICE_WORKER = Buffer.from(
+  `const CACHE_NAME = 'pingme-help-shell-v1';
+const SHELL_FILES = ['/', '/privacy', '/assets/styles.css', '/assets/app.js', '/manifest.webmanifest', '/assets/icon.svg', '/assets/icon-maskable.svg'];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_FILES)).then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  if (request.method !== 'GET') {
+    return;
+  }
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
+    return;
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/'))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const networkFetch = fetch(request).then((response) => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => cached);
+      return cached || networkFetch;
+    })
+  );
+});`,
+  'utf8'
+);
+
 const ASSETS = {
   '/assets/styles.css': { body: readAsset('styles.css'), type: 'text/css; charset=utf-8' },
-  '/assets/app.js': { body: readAsset('app.js'), type: 'application/javascript; charset=utf-8' }
+  '/assets/app.js': { body: readAsset('app.js'), type: 'application/javascript; charset=utf-8' },
+  '/assets/icon.svg': { body: APP_ICON_SVG, type: 'image/svg+xml; charset=utf-8' },
+  '/assets/icon-maskable.svg': { body: APP_ICON_MASKABLE_SVG, type: 'image/svg+xml; charset=utf-8' },
+  '/manifest.webmanifest': { body: WEB_MANIFEST, type: 'application/manifest+json; charset=utf-8' },
+  '/sw.js': { body: SERVICE_WORKER, type: 'application/javascript; charset=utf-8' }
 };
 
 const CSP = [
@@ -74,6 +191,51 @@ function sendAsset(response, asset) {
   response.end(asset.body);
 }
 
+function getPublicOrigin(config, requestUrl) {
+  if (['127.0.0.1', 'localhost', '[::1]'].includes(requestUrl.hostname)) {
+    return requestUrl.origin;
+  }
+  const serviceName = String(config.serviceName || '').trim();
+  if (/^https?:\/\//i.test(serviceName)) {
+    return serviceName.replace(/\/+$/, '');
+  }
+  if (serviceName && /^[a-z0-9.-]+$/i.test(serviceName)) {
+    return `https://${serviceName}`;
+  }
+  return requestUrl.origin;
+}
+
+function buildEmailVerificationLink(config, requestUrl, username, token) {
+  const link = new URL('/verify-email', getPublicOrigin(config, requestUrl));
+  link.searchParams.set('username', username);
+  link.searchParams.set('token', token);
+  return link.toString();
+}
+
+function renderEmailVerificationResultPage(success, message) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Email verification | pingme.help</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body data-view="email-verification">
+  <div class="shell">
+    <main class="page">
+      <section class="card">
+        <p class="eyebrow">Email verification</p>
+        <h1>${success ? 'Email verified' : 'Verification failed'}</h1>
+        <p class="lede">${escapeHtml(message)}</p>
+        <a class="primary-button link-button" href="/">Return to pingme.help</a>
+      </section>
+    </main>
+  </div>
+</body>
+</html>`;
+}
+
 function notFound(response) {
   sendJson(response, 404, { ok: false, error: 'Not found' });
 }
@@ -90,6 +252,20 @@ function sendTooManyRequests(response, retryAfterMs) {
     error: 'Too many attempts. Try again later.',
     retry_after: retryAfterSecs
   }));
+}
+
+function logRequestError(method, pathName, error, level = 'error') {
+  const type = error && error.constructor ? error.constructor.name : 'Error';
+  const message = error && error.message ? error.message : 'Unknown error';
+  const line = `[${nowIso()}] ${method} ${pathName} failed: ${type}: ${message}`;
+  if (level === 'warn') {
+    console.warn(line);
+    return;
+  }
+  console.error(line);
+  if (error && error.stack) {
+    console.error(error.stack);
+  }
 }
 
 function getRequestBody(request) {
@@ -181,7 +357,7 @@ async function sendMail(config, store, { to, subject, text }) {
     return false;
   }
   await transporter.sendMail({
-    from: smtp.user,
+    from: config.smtpFrom || smtp.user,
     to,
     subject,
     text
@@ -200,6 +376,18 @@ function ensureAuthedSession(payload, sessions, expectedType = null) {
     throw new Error('invalid session');
   }
   return { token, session };
+}
+
+function buildUserDashboard(store, username) {
+  const user = store.getUser(username);
+  return {
+    private_stats: store.getPrivateStats(username),
+    codewords: store.listCodewords(username),
+    twofa_enabled: Boolean(user && user.twofa_enabled),
+    email: user && user.email ? user.email : '',
+    email_verified: Boolean(user && user.email_verified_at),
+    email_verified_at: user && user.email_verified_at ? user.email_verified_at : null
+  };
 }
 
 function createServer({ config, store }) {
@@ -231,6 +419,29 @@ function createServer({ config, store }) {
     }
   };
 
+  const sendVerificationEmail = async (requestUrl, username, email) => {
+    if (!email) {
+      return false;
+    }
+    const token = randomId();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    store.setUserTwofa(
+      username,
+      Boolean(store.getUser(username)?.twofa_enabled),
+      email,
+      null,
+      hashPassword(token),
+      expiresAt
+    );
+    const link = buildEmailVerificationLink(config, requestUrl, username, token);
+    const sent = await sendMail(config, store, {
+      to: email,
+      subject: 'Verify your pingme.help email',
+      text: `Open this link to verify your email address: ${link}\n\nThis link expires in 24 hours.`
+    }).catch(() => false);
+    return Boolean(sent);
+  };
+
   return http.createServer(async (request, response) => {
     stripIpHeaders(request.headers);
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
@@ -260,6 +471,31 @@ function createServer({ config, store }) {
 
       if (method === 'GET' && url.pathname === '/privacy') {
         sendHtml(response, 200, privacyPageHtml);
+        return;
+      }
+
+      if (method === 'GET' && url.pathname === '/verify-email') {
+        const username = normalizeUsername(url.searchParams.get('username') || '');
+        const token = String(url.searchParams.get('token') || '').trim();
+        const user = store.getUser(username);
+        const expiresAt = user && user.email_verification_expires_at
+          ? Date.parse(user.email_verification_expires_at)
+          : NaN;
+        const valid = Boolean(
+          user &&
+          token &&
+          user.email &&
+          user.email_verification_token_hash &&
+          Number.isFinite(expiresAt) &&
+          expiresAt > Date.now() &&
+          verifyPassword(token, user.email_verification_token_hash)
+        );
+        if (!valid) {
+          sendHtml(response, 400, renderEmailVerificationResultPage(false, 'This verification link is invalid or has expired.'));
+          return;
+        }
+        store.markEmailVerified(username, nowIso());
+        sendHtml(response, 200, renderEmailVerificationResultPage(true, `The address ${user.email} is now verified.`));
         return;
       }
 
@@ -304,9 +540,6 @@ function createServer({ config, store }) {
       }
 
       if (url.pathname === '/api/register/suggest') {
-        if (!(await requireTurnstile())) {
-          return;
-        }
         for (let i = 0; i < 20; i += 1) {
           const username = generateVerbNounUsername();
           if (!store.getUser(username)) {
@@ -334,15 +567,33 @@ function createServer({ config, store }) {
           sendJson(response, 409, { ok: false, error: 'Username unavailable' });
           return;
         }
+        const createdAt = nowIso();
         store.registerUser({
           username,
           passwordHash: hashPassword(password),
           email,
-          createdAt: nowIso()
+          createdAt
         });
         const firstCodeword = generateAdjectiveNounCodeword();
-        store.createCodeword(username, firstCodeword, nowIso());
-        sendJson(response, 200, { ok: true, username, codeword: firstCodeword });
+        store.createCodeword(username, firstCodeword, createdAt);
+        const verificationEmailSent = await sendVerificationEmail(url, username, email);
+        const sessionToken = randomId();
+        sessions.set(sessionToken, {
+          username,
+          role: 'user',
+          type: 'user'
+        });
+        sendJson(response, 200, {
+          ok: true,
+          username,
+          codeword: firstCodeword,
+          session_token: sessionToken,
+          role: 'user',
+          verification_email_sent: verificationEmailSent,
+          dashboard: {
+            user: buildUserDashboard(store, username)
+          }
+        });
         return;
       }
 
@@ -350,8 +601,10 @@ function createServer({ config, store }) {
         if (!(await requireTurnstile())) {
           return;
         }
-        const username = normalizeUsername(payload.username);
-        const lockState = lockout.check('auth:' + username);
+        const loginEmail = normalizeEmail(payload.email);
+        const inputUsername = loginEmail ? '' : normalizeUsername(payload.username);
+        const lockoutKey = 'auth:' + (loginEmail || inputUsername);
+        const lockState = lockout.check(lockoutKey);
         if (!lockState.allowed) {
           sendTooManyRequests(response, lockState.retryAfterMs);
           return;
@@ -360,14 +613,15 @@ function createServer({ config, store }) {
         const password = normalizePassword(payload.password);
         const burnMessage = sanitizeMessage(payload.message);
         const status = payload.status === 'not_ok' ? 0 : 1;
-        const user = store.getUser(username);
+        const user = loginEmail ? store.getUserByEmail(loginEmail) : store.getUser(inputUsername);
         if (!user || !verifyPassword(password, user.password_hash)) {
-          lockout.recordFailure('auth:' + username);
+          lockout.recordFailure(lockoutKey);
           sendJson(response, 401, { ok: false, error: 'Invalid credentials' });
           return;
         }
 
-        lockout.recordSuccess('auth:' + username);
+        const username = normalizeUsername(user.username);
+        lockout.recordSuccess(lockoutKey);
         store.saveUserStatus({
           username,
           status,
@@ -385,43 +639,73 @@ function createServer({ config, store }) {
         return;
       }
 
+      if (url.pathname === '/api/user/status') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const burnMessage = sanitizeMessage(payload.message);
+        const status = payload.status === 'not_ok' ? 0 : 1;
+        store.saveUserStatus({
+          username: session.username,
+          status,
+          burnMessage,
+          lastStatusUpdate: nowIso()
+        });
+        const stats = store.getPrivateStats(session.username);
+        sendJson(response, 200, {
+          ok: true,
+          private_stats: {
+            last_viewer_access: stats && stats.last_viewer_access ? stats.last_viewer_access : 'Never',
+            message_viewed_flag: Boolean(stats && stats.message_viewed_flag)
+          }
+        });
+        return;
+      }
+
       if (url.pathname === '/api/login/start') {
         if (!(await requireTurnstile())) {
           return;
         }
 
-        const username = normalizeUsername(payload.username);
+        const loginEmail = normalizeEmail(payload.email);
+        const username = loginEmail ? '' : normalizeUsername(payload.username);
         const password = normalizePassword(payload.password);
+        if (!password || (!loginEmail && !username)) {
+          sendJson(response, 400, { ok: false, error: 'Invalid input' });
+          return;
+        }
 
-        const lockState = lockout.check('login:' + username);
+        const lockIdentifier = loginEmail || username;
+        const lockState = lockout.check('login:' + lockIdentifier);
         if (!lockState.allowed) {
           sendTooManyRequests(response, lockState.retryAfterMs);
           return;
         }
 
         let role = 'user';
-        let user = store.getUser(username);
+        let user = loginEmail ? store.getUserByEmail(loginEmail) : store.getUser(username);
+        let resolvedUsername = user && user.username ? user.username : username;
 
-        if (secureCompareText(username, config.adminUser)) {
+        if (!loginEmail && secureCompareText(username, config.adminUser)) {
           role = 'admin';
+          resolvedUsername = config.adminUser;
           const adminPasswordHash = store.getAdminPasswordHash();
           const valid = adminPasswordHash
             ? verifyPassword(password, adminPasswordHash)
             : secureCompareText(password, config.adminPass);
           if (!valid) {
-            lockout.recordFailure('login:' + username);
+            lockout.recordFailure('login:' + lockIdentifier);
             sendJson(response, 401, { ok: false, error: 'Invalid credentials' });
             return;
           }
         } else {
           if (!user || !verifyPassword(password, user.password_hash)) {
-            lockout.recordFailure('login:' + username);
+            lockout.recordFailure('login:' + lockIdentifier);
             sendJson(response, 401, { ok: false, error: 'Invalid credentials' });
             return;
           }
+          resolvedUsername = user.username;
         }
 
-        lockout.recordSuccess('login:' + username);
+        lockout.recordSuccess('login:' + lockIdentifier);
 
         const twofaEnabled = role === 'admin'
           ? store.getSetting('admin_twofa_enabled', 'false') === 'true'
@@ -439,7 +723,7 @@ function createServer({ config, store }) {
           const code = randomCode();
           const challengeId = randomId();
           loginChallenges.set(challengeId, {
-            username,
+            username: resolvedUsername,
             role,
             codeHash: hashPassword(code),
             expiresAt: Date.now() + 10 * 60 * 1000
@@ -454,14 +738,15 @@ function createServer({ config, store }) {
           sendJson(response, 200, {
             ok: true,
             requires_2fa: true,
-            challenge_id: challengeId
+            challenge_id: challengeId,
+            username: resolvedUsername
           });
           return;
         }
 
         const sessionToken = randomId();
         const payloadSession = {
-          username,
+          username: resolvedUsername,
           role,
           type: role === 'admin' ? 'admin' : 'user'
         };
@@ -472,17 +757,11 @@ function createServer({ config, store }) {
           requires_2fa: false,
           session_token: sessionToken,
           role,
+          username: resolvedUsername,
           dashboard: {
             total_users: role === 'admin' ? store.getTotalUsers() : undefined,
             smtp: role === 'admin' ? store.getSmtpSettings(config) : undefined,
-            user: role === 'user'
-              ? {
-                private_stats: store.getPrivateStats(username),
-                codewords: store.listCodewords(username),
-                twofa_enabled: Boolean(user.twofa_enabled),
-                email: user.email || ''
-              }
-              : undefined
+            user: role === 'user' ? buildUserDashboard(store, resolvedUsername) : undefined
           }
         });
         return;
@@ -512,17 +791,11 @@ function createServer({ config, store }) {
           ok: true,
           session_token: sessionToken,
           role: challenge.role,
+          username: challenge.username,
           dashboard: {
             total_users: challenge.role === 'admin' ? store.getTotalUsers() : undefined,
             smtp: challenge.role === 'admin' ? store.getSmtpSettings(config) : undefined,
-            user: challenge.role === 'user'
-              ? {
-                private_stats: store.getPrivateStats(challenge.username),
-                codewords: store.listCodewords(challenge.username),
-                twofa_enabled: Boolean(user && user.twofa_enabled),
-                email: user && user.email ? user.email : ''
-              }
-              : undefined
+            user: challenge.role === 'user' ? buildUserDashboard(store, challenge.username) : undefined
           }
         });
         return;
@@ -532,8 +805,8 @@ function createServer({ config, store }) {
         if (!(await requireTurnstile())) {
           return;
         }
-        const username = normalizeUsername(payload.username);
-        const user = store.getUser(username);
+        const email = normalizeEmail(payload.email);
+        const user = email ? store.getUserByEmail(email) : null;
         if (!user || !user.email) {
           sendJson(response, 200, { ok: true });
           return;
@@ -542,7 +815,7 @@ function createServer({ config, store }) {
         const code = randomCode();
         const challengeId = randomId();
         resetChallenges.set(challengeId, {
-          username,
+          username: user.username,
           codeHash: hashPassword(code),
           expiresAt: Date.now() + 15 * 60 * 1000
         });
@@ -680,7 +953,65 @@ function createServer({ config, store }) {
           sendJson(response, 400, { ok: false, error: 'Email is required to enable 2FA' });
           return;
         }
-        store.setUserTwofa(session.username, enabled, email);
+        const user = store.getUser(session.username);
+        const emailChanged = !secureCompareText(user && user.email ? user.email : '', email || '');
+        const emailVerifiedAt = emailChanged ? null : (user && user.email_verified_at ? user.email_verified_at : null);
+        const emailVerificationTokenHash = emailChanged ? null : (user && user.email_verification_token_hash ? user.email_verification_token_hash : null);
+        const emailVerificationExpiresAt = emailChanged ? null : (user && user.email_verification_expires_at ? user.email_verification_expires_at : null);
+        store.setUserTwofa(
+          session.username,
+          enabled,
+          email,
+          emailVerifiedAt,
+          emailVerificationTokenHash,
+          emailVerificationExpiresAt
+        );
+        const verificationEmailSent = emailChanged && email
+          ? await sendVerificationEmail(url, session.username, email)
+          : false;
+        sendJson(response, 200, {
+          ok: true,
+          verification_email_sent: verificationEmailSent,
+          dashboard: {
+            user: buildUserDashboard(store, session.username)
+          }
+        });
+        return;
+      }
+
+      if (url.pathname === '/api/user/email-verification/resend') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const user = store.getUser(session.username);
+        if (!user || !user.email) {
+          sendJson(response, 400, { ok: false, error: 'Email is not configured' });
+          return;
+        }
+        const sent = await sendVerificationEmail(url, session.username, user.email);
+        sendJson(response, 200, {
+          ok: true,
+          verification_email_sent: sent,
+          dashboard: {
+            user: buildUserDashboard(store, session.username)
+          }
+        });
+        return;
+      }
+
+      if (url.pathname === '/api/user/password') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const currentPassword = normalizePassword(payload.currentPassword);
+        const newPassword = normalizePassword(payload.newPassword);
+        const newPasswordConfirm = normalizePassword(payload.newPasswordConfirm);
+        if (!secureCompareText(newPassword, newPasswordConfirm)) {
+          sendJson(response, 400, { ok: false, error: 'Passwords do not match' });
+          return;
+        }
+        const user = store.getUser(session.username);
+        if (!user || !verifyPassword(currentPassword, user.password_hash)) {
+          sendJson(response, 401, { ok: false, error: 'Current password is incorrect' });
+          return;
+        }
+        store.updatePassword(session.username, hashPassword(newPassword));
         sendJson(response, 200, { ok: true });
         return;
       }
@@ -768,17 +1099,11 @@ function createServer({ config, store }) {
           return;
         }
         if (session.type === 'user') {
-          const user = store.getUser(session.username);
           sendJson(response, 200, {
             ok: true,
             role: 'user',
             dashboard: {
-              user: {
-                private_stats: store.getPrivateStats(session.username),
-                codewords: store.listCodewords(session.username),
-                twofa_enabled: Boolean(user && user.twofa_enabled),
-                email: user && user.email ? user.email : ''
-              }
+              user: buildUserDashboard(store, session.username)
             }
           });
           return;
@@ -789,16 +1114,20 @@ function createServer({ config, store }) {
 
       notFound(response);
     } catch (error) {
-      if (error.message === 'too large' || error.message === 'invalid json') {
+      const message = error && error.message ? error.message : '';
+      if (message === 'too large' || message === 'invalid json') {
+        logRequestError(method, url.pathname, error, 'warn');
         sendJson(response, 400, { ok: false, error: 'Malformed request' });
         return;
       }
 
-      if (error.message.startsWith('invalid ')) {
+      if (message.startsWith('invalid ')) {
+        logRequestError(method, url.pathname, error, 'warn');
         sendJson(response, 400, { ok: false, error: 'Invalid input' });
         return;
       }
 
+      logRequestError(method, url.pathname, error, 'error');
       sendJson(response, 500, { ok: false, error: 'Server error' });
     }
   });

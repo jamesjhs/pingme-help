@@ -7,6 +7,46 @@
   let turnstileSessionExpiresAt = 0;
   let currentSession = null;
   let pingerSession = null;
+  let installPromptEvent = null;
+
+  async function setupPwaShell() {
+    const installButton = document.getElementById('install-app-button');
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (standalone) {
+      document.body.classList.add('pwa-standalone');
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      installPromptEvent = event;
+      if (installButton) {
+        show(installButton, true);
+      }
+    });
+
+    window.addEventListener('appinstalled', () => {
+      installPromptEvent = null;
+      if (installButton) {
+        show(installButton, false);
+      }
+    });
+
+    installButton?.addEventListener('click', async () => {
+      if (!installPromptEvent) {
+        return;
+      }
+      installButton.disabled = true;
+      installPromptEvent.prompt();
+      await installPromptEvent.userChoice.catch(() => null);
+      installPromptEvent = null;
+      show(installButton, false);
+      installButton.disabled = false;
+    });
+  }
 
   function setMessage(element, message, tone = 'info') {
     if (!element) {
@@ -29,8 +69,17 @@
       return;
     }
     form.querySelectorAll('button').forEach((btn) => {
-      btn.disabled = busy;
+      btn.disabled = busy || (btn.hasAttribute('data-public-action') && Boolean(siteKey) && !isTurnstileSessionValid());
     });
+  }
+
+  function updateCharCount(input, counter) {
+    if (!input || !counter) {
+      return;
+    }
+    const remaining = 100 - input.value.length;
+    counter.textContent = remaining + ' characters remaining';
+    counter.classList.toggle('near-limit', remaining <= 20);
   }
 
   function formPayload(form) {
@@ -73,17 +122,38 @@
     };
   }
 
+  function setPublicActionsLocked(locked) {
+    document.querySelectorAll('[data-public-action]').forEach((button) => {
+      button.disabled = locked;
+    });
+  }
+
+  function updateHomeLayout() {
+    const homeTabs = document.getElementById('home-tabs');
+    const quickStatusCard = document.getElementById('quick-status-card');
+    const pitchCard = document.querySelector('.pitch-card');
+    const isLoggedIn = Boolean(currentSession);
+    const isUser = isLoggedIn && currentSession.role === 'user';
+
+    show(homeTabs, !isLoggedIn);
+    show(quickStatusCard, isUser);
+    if (pitchCard) {
+      pitchCard.hidden = isLoggedIn;
+    }
+  }
+
   function mountTurnstile() {
     const shell = document.getElementById('turnstile-global-widget');
-    const feedback = document.getElementById('turnstile-global-feedback');
-    if (!shell || !feedback) {
+    if (!shell) {
       return;
     }
 
     if (!siteKey) {
-      setMessage(feedback, 'Turnstile is not configured on this server.');
+      setPublicActionsLocked(false);
       return;
     }
+
+    setPublicActionsLocked(true);
 
     const renderWidget = function () {
       if (turnstileWidgetId !== undefined) {
@@ -91,37 +161,36 @@
       }
       turnstileWidgetId = window.turnstile.render(shell, {
         sitekey: siteKey,
-        theme: 'light',
+        theme: 'dark',
         callback: async (token) => {
           try {
             const data = await postJson('/api/turnstile/session', { turnstileToken: token });
             if (data.bypass) {
               turnstileSessionToken = '';
               turnstileSessionExpiresAt = Number.MAX_SAFE_INTEGER;
-              setMessage(feedback, 'Verification is bypassed for this environment.', 'success');
+              setPublicActionsLocked(false);
               return;
             }
             turnstileSessionToken = data.turnstile_session_token;
             turnstileSessionExpiresAt = Date.now() + Number(data.expires_in_ms || 0);
-            setMessage(feedback, 'Verification complete. You can now use all forms.', 'success');
-          } catch (error) {
+            setPublicActionsLocked(false);
+          } catch {
             turnstileSessionToken = '';
             turnstileSessionExpiresAt = 0;
-            setMessage(feedback, error.message, 'error');
+            setPublicActionsLocked(true);
           }
         },
         'expired-callback': () => {
           turnstileSessionToken = '';
           turnstileSessionExpiresAt = 0;
-          setMessage(feedback, 'Verification expired. Please verify again.', 'error');
+          setPublicActionsLocked(true);
         },
         'error-callback': () => {
           turnstileSessionToken = '';
           turnstileSessionExpiresAt = 0;
-          setMessage(feedback, 'Verification failed. Please retry.', 'error');
+          setPublicActionsLocked(true);
         }
       });
-      setMessage(feedback, 'Complete verification once to unlock all forms.');
     };
 
     if (window.turnstile) {
@@ -135,31 +204,40 @@
   function resetTurnstileSession() {
     turnstileSessionToken = '';
     turnstileSessionExpiresAt = 0;
+    setPublicActionsLocked(Boolean(siteKey));
     if (turnstileWidgetId !== undefined && window.turnstile) {
       window.turnstile.reset(turnstileWidgetId);
-    }
-    const feedback = document.getElementById('turnstile-global-feedback');
-    if (feedback) {
-      setMessage(feedback, 'Verification reset. Please verify again.');
     }
   }
 
   function initTabs() {
-    const buttons = document.querySelectorAll('[data-tab-target]');
-    buttons.forEach((button) => {
-      button.addEventListener('click', () => {
-        const target = button.dataset.tabTarget;
-        document.querySelectorAll('.tab-button').forEach((item) => {
-          item.classList.toggle('is-active', item === button);
-          item.setAttribute('aria-selected', item === button ? 'true' : 'false');
-        });
-        document.querySelectorAll('.tab-panel').forEach((panel) => {
-          const active = panel.id === target;
-          panel.classList.toggle('is-active', active);
-          panel.hidden = !active;
-        });
+    function activateTab(target, allowCollapse) {
+      const alreadyActive = !!(document.querySelector('.tab-button[data-tab-target="' + target + '"]')?.classList.contains('is-active'));
+      document.querySelectorAll('.tab-button').forEach((item) => {
+        item.classList.remove('is-active');
+        item.setAttribute('aria-selected', 'false');
       });
+      document.querySelectorAll('.tab-panel').forEach((panel) => {
+        panel.classList.remove('is-active');
+        panel.hidden = true;
+      });
+      if (!allowCollapse || !alreadyActive) {
+        const button = document.querySelector('.tab-button[data-tab-target="' + target + '"]');
+        const panel = document.getElementById(target);
+        if (button) {
+          button.classList.add('is-active');
+          button.setAttribute('aria-selected', 'true');
+        }
+        if (panel) {
+          panel.classList.add('is-active');
+          panel.hidden = false;
+        }
+      }
+    }
+    document.querySelectorAll('[data-tab-target]').forEach((button) => {
+      button.addEventListener('click', () => activateTab(button.dataset.tabTarget, true));
     });
+    return activateTab;
   }
 
   function setCodewordList(items) {
@@ -201,12 +279,28 @@
     const adminDashboard = document.getElementById('admin-dashboard');
     show(adminDashboard, false);
     show(dashboard, true);
+    updateHomeLayout();
 
     const userStats = (data.dashboard && data.dashboard.user) || {};
     const stats = userStats.private_stats || {};
     const usernameNode = dashboard.querySelector('[data-user="username"]');
     if (usernameNode) {
       usernameNode.textContent = currentSession.username;
+    }
+    const emailNode = dashboard.querySelector('[data-user="email"]');
+    if (emailNode) {
+      emailNode.textContent = userStats.email || '—';
+    }
+    const emailStatusNode = dashboard.querySelector('[data-user="emailVerificationStatus"]');
+    if (emailStatusNode) {
+      const verified = Boolean(userStats.email_verified);
+      emailStatusNode.textContent = verified ? 'verified' : 'unverified';
+      emailStatusNode.dataset.state = verified ? 'verified' : 'unverified';
+    }
+    const resendButton = document.getElementById('user-resend-verification');
+    if (resendButton) {
+      resendButton.disabled = !userStats.email || Boolean(userStats.email_verified);
+      resendButton.classList.toggle('hidden', !userStats.email || Boolean(userStats.email_verified));
     }
     const lastViewer = dashboard.querySelector('[data-user="lastViewerAccess"]');
     if (lastViewer) {
@@ -229,6 +323,7 @@
     const userDashboard = document.getElementById('user-dashboard');
     show(userDashboard, false);
     show(dashboard, true);
+    updateHomeLayout();
 
     const total = dashboard.querySelector('[data-admin="totalUsers"]');
     if (total) {
@@ -262,28 +357,55 @@
     show(document.getElementById('user-dashboard'), false);
     show(document.getElementById('admin-dashboard'), false);
     show(document.getElementById('pinger-dashboard'), false);
+    updateHomeLayout();
   }
 
-  async function fetchRegisterSuggestion(form) {
-    const data = await postJson('/api/register/suggest', attachTurnstileSession({}));
+  async function fetchRegisterSuggestion() {
+    const data = await postJson('/api/register/suggest', {});
     return data.username;
   }
 
   function initHome() {
-    initTabs();
+    const activateTab = initTabs();
+    updateHomeLayout();
+
+    // Deep-link: open a specific tab from URL params (e.g. share links with ?tab=check&user=...)
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam) {
+      activateTab(tabParam + '-panel', false);
+    }
+    const userParam = params.get('user');
+    if (userParam) {
+      const checkUsernameInput = document.querySelector('#check-panel input[name="username"]');
+      if (checkUsernameInput) {
+        checkUsernameInput.value = userParam;
+      }
+    }
+
+    // CTA "Get started" button on pitch card opens the register tab
+    document.querySelectorAll('[data-open-tab]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.dataset.openTab;
+        activateTab(target, false);
+        document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
 
     const sendPingForm = document.getElementById('send-ping-form');
     const sendPingFeedback = document.getElementById('send-ping-feedback');
+    const quickStatusForm = document.getElementById('quick-status-form');
+    const quickStatusFeedback = document.getElementById('quick-status-feedback');
     const registerForm = document.getElementById('register-form');
     const registerFeedback = document.getElementById('register-feedback');
     const registerUsername = document.getElementById('register-username');
-    const regenerateUsernameLink = document.getElementById('regenerate-username-link');
+    const regenerateUsernameButton = document.getElementById('regenerate-username-button');
     const regenerateCodewordLink = document.getElementById('regenerate-codeword-link');
     const userCodewordCreateForm = document.getElementById('user-codeword-create-form');
     const loginForm = document.getElementById('login-form');
     const login2faForm = document.getElementById('login-2fa-form');
     const loginFeedback = document.getElementById('login-feedback');
-    const resetRequestForm = document.getElementById('password-reset-request-form');
+    const forgotPasswordButton = document.getElementById('forgot-password-button');
     const resetConfirmForm = document.getElementById('password-reset-confirm-form');
     const checkPingForm = document.getElementById('check-ping-form');
     const checkPingFeedback = document.getElementById('check-ping-feedback');
@@ -299,13 +421,13 @@
 
     const burnInput = document.getElementById('burn-message-input');
     const burnCharCount = document.getElementById('burn-char-count');
-    if (burnInput && burnCharCount) {
-      burnInput.addEventListener('input', () => {
-        const remaining = 100 - burnInput.value.length;
-        burnCharCount.textContent = remaining + ' characters remaining';
-        burnCharCount.classList.toggle('near-limit', remaining <= 20);
-      });
-    }
+    const quickBurnInput = document.getElementById('quick-burn-message-input');
+    const quickBurnCharCount = document.getElementById('quick-burn-char-count');
+
+    burnInput?.addEventListener('input', () => updateCharCount(burnInput, burnCharCount));
+    quickBurnInput?.addEventListener('input', () => updateCharCount(quickBurnInput, quickBurnCharCount));
+    updateCharCount(burnInput, burnCharCount);
+    updateCharCount(quickBurnInput, quickBurnCharCount);
 
     const refreshUserCodeword = () => {
       const input = userCodewordCreateForm?.elements?.codeword;
@@ -325,23 +447,32 @@
         });
     };
 
+    const completeUserLogin = (data, username, message = 'Logged in.') => {
+      currentSession = {
+        sessionToken: data.session_token,
+        role: data.role,
+        username
+      };
+      applyUserDashboard(data);
+      refreshUserCodeword();
+      setMessage(userDashboardFeedback, message, 'success');
+    };
+    let pendingLoginUsername = '';
+
     if (registerForm) {
       const suggest = async () => {
         try {
-          setBusy(registerForm, true);
-          const username = await fetchRegisterSuggestion(registerForm);
-          registerUsername.value = username;
+          regenerateUsernameButton.disabled = true;
+          const suggestedUsername = await fetchRegisterSuggestion();
+          registerUsername.value = suggestedUsername;
         } catch (error) {
           setMessage(registerFeedback, error.message, 'error');
         } finally {
-          setBusy(registerForm, false);
+          regenerateUsernameButton.disabled = false;
         }
       };
       suggest();
-      regenerateUsernameLink?.addEventListener('click', (event) => {
-        event.preventDefault();
-        suggest();
-      });
+      regenerateUsernameButton?.addEventListener('click', suggest);
 
       registerForm.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -350,9 +481,16 @@
         try {
           const payload = attachTurnstileSession(formPayload(registerForm));
           const data = await postJson('/api/register', payload);
-          setMessage(registerFeedback, `Registered as ${data.username}. First codeword: ${data.codeword}`, 'success');
           registerForm.reset();
-          registerUsername.value = data.username;
+          await suggest();
+          show(login2faForm, false);
+          completeUserLogin(
+            data,
+            data.username,
+            data.verification_email_sent
+              ? `Welcome, ${data.username}. First codeword: ${data.codeword}. Check your email to verify your address.`
+              : `Welcome, ${data.username}. First codeword: ${data.codeword}.`
+          );
         } catch (error) {
           setMessage(registerFeedback, error.message, 'error');
           if (siteKey) {
@@ -378,10 +516,7 @@
             'success'
           );
           sendPingForm.reset();
-          if (burnCharCount) {
-            burnCharCount.textContent = '100 characters remaining';
-            burnCharCount.classList.remove('near-limit');
-          }
+          updateCharCount(burnInput, burnCharCount);
         } catch (error) {
           setMessage(sendPingFeedback, error.message, 'error');
           if (siteKey) {
@@ -393,6 +528,35 @@
       });
     });
 
+    document.querySelectorAll('[data-quick-status-value]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!currentSession) {
+          return;
+        }
+        quickStatusForm.elements.status.value = button.dataset.quickStatusValue;
+        setMessage(quickStatusFeedback, 'Saving status…');
+        setBusy(quickStatusForm, true);
+        try {
+          const result = await postJson('/api/user/status', {
+            sessionToken: currentSession.sessionToken,
+            ...formPayload(quickStatusForm)
+          });
+          setMessage(
+            quickStatusFeedback,
+            `Saved. Last checked: ${result.private_stats.last_viewer_access}. Burn message viewed: ${result.private_stats.message_viewed_flag ? 'yes' : 'no'}.`,
+            'success'
+          );
+          quickStatusForm.reset();
+          updateCharCount(quickBurnInput, quickBurnCharCount);
+          applyUserDashboard({ dashboard: { user: { ...(await postJson('/api/session/refresh', { sessionToken: currentSession.sessionToken })).dashboard.user } } });
+        } catch (error) {
+          setMessage(quickStatusFeedback, error.message, 'error');
+        } finally {
+          setBusy(quickStatusForm, false);
+        }
+      });
+    });
+
     loginForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
       setBusy(loginForm, true);
@@ -400,22 +564,23 @@
       try {
         const payload = attachTurnstileSession(formPayload(loginForm));
         const data = await postJson('/api/login/start', payload);
+        pendingLoginUsername = data.username || '';
         if (data.requires_2fa) {
           show(login2faForm, true);
           login2faForm.elements.challengeId.value = data.challenge_id;
           setMessage(loginFeedback, '2FA code sent. Enter it below.', 'success');
           return;
         }
-        currentSession = {
-          sessionToken: data.session_token,
-          role: data.role,
-          username: payload.username
-        };
         if (data.role === 'admin') {
+          currentSession = {
+            sessionToken: data.session_token,
+            role: data.role,
+            username: data.username || 'admin'
+          };
           applyAdminDashboard(data);
+          setMessage(adminDashboardFeedback, 'Logged in.', 'success');
         } else {
-          applyUserDashboard(data);
-          refreshUserCodeword();
+          completeUserLogin(data, data.username);
         }
         setMessage(loginFeedback, 'Logged in.', 'success');
       } catch (error) {
@@ -435,17 +600,17 @@
       try {
         const payload = attachTurnstileSession(formPayload(login2faForm));
         const data = await postJson('/api/login/verify-2fa', payload);
-        currentSession = {
-          sessionToken: data.session_token,
-          role: data.role,
-          username: loginForm.elements.username.value
-        };
         show(login2faForm, false);
         if (data.role === 'admin') {
+          currentSession = {
+            sessionToken: data.session_token,
+            role: data.role,
+            username: data.username || pendingLoginUsername || 'admin'
+          };
           applyAdminDashboard(data);
+          setMessage(adminDashboardFeedback, 'Logged in.', 'success');
         } else {
-          applyUserDashboard(data);
-          refreshUserCodeword();
+          completeUserLogin(data, data.username || pendingLoginUsername);
         }
         setMessage(loginFeedback, 'Logged in.', 'success');
       } catch (error) {
@@ -458,12 +623,19 @@
       }
     });
 
-    resetRequestForm?.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      setBusy(resetRequestForm, true);
+    forgotPasswordButton?.addEventListener('click', async () => {
+      if (!loginForm) {
+        return;
+      }
+      const email = String(loginForm.elements.email?.value || '').trim();
+      if (!email) {
+        setMessage(loginFeedback, 'Enter your email address first.', 'error');
+        return;
+      }
+      forgotPasswordButton.disabled = true;
       setMessage(loginFeedback, 'Sending reset code…');
       try {
-        const payload = attachTurnstileSession(formPayload(resetRequestForm));
+        const payload = attachTurnstileSession({ email });
         const data = await postJson('/api/password-reset/request', payload);
         if (data.challenge_id) {
           show(resetConfirmForm, true);
@@ -476,7 +648,7 @@
           resetTurnstileSession();
         }
       } finally {
-        setBusy(resetRequestForm, false);
+        forgotPasswordButton.disabled = false;
       }
     });
 
@@ -569,12 +741,64 @@
       setBusy(form, true);
       try {
         const payload = formPayload(form);
-        await postJson('/api/user/twofa', {
+        const data = await postJson('/api/user/twofa', {
           sessionToken: currentSession.sessionToken,
           email: payload.email,
           enabled: payload.enabled === 'on'
         });
-        setMessage(userDashboardFeedback, '2FA settings updated.', 'success');
+        applyUserDashboard(data);
+        setMessage(
+          userDashboardFeedback,
+          data.verification_email_sent ? '2FA settings updated. Check your email to verify the address.' : '2FA settings updated.',
+          'success'
+        );
+      } catch (error) {
+        setMessage(userDashboardFeedback, error.message, 'error');
+      } finally {
+        setBusy(form, false);
+      }
+    });
+
+    document.getElementById('user-resend-verification')?.addEventListener('click', async (event) => {
+      if (!currentSession) {
+        return;
+      }
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const data = await postJson('/api/user/email-verification/resend', {
+          sessionToken: currentSession.sessionToken
+        });
+        applyUserDashboard(data);
+        setMessage(
+          userDashboardFeedback,
+          data.verification_email_sent ? 'Verification email sent.' : 'Email delivery is not configured.',
+          data.verification_email_sent ? 'success' : 'error'
+        );
+      } catch (error) {
+        setMessage(userDashboardFeedback, error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('user-password-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!currentSession) {
+        return;
+      }
+      const form = event.currentTarget;
+      setBusy(form, true);
+      try {
+        const payload = formPayload(form);
+        await postJson('/api/user/password', {
+          sessionToken: currentSession.sessionToken,
+          currentPassword: payload.currentPassword,
+          newPassword: payload.newPassword,
+          newPasswordConfirm: payload.newPasswordConfirm
+        });
+        form.reset();
+        setMessage(userDashboardFeedback, 'Password updated.', 'success');
       } catch (error) {
         setMessage(userDashboardFeedback, error.message, 'error');
       } finally {
@@ -744,6 +968,7 @@
     refreshUserCodeword();
   }
 
+  setupPwaShell();
   mountTurnstile();
 
   if (view === 'home') {
