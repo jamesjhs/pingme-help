@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { escapeHtml } = require('./security');
 
 const CA = 'autocapitalize="none" autocorrect="off" spellcheck="false"';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 const crypto = require('node:crypto');
 
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,32}$/;

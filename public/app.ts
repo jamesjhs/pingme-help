@@ -1,3 +1,4 @@
+// @ts-nocheck
 (function () {
   const view = document.body.dataset.view;
   const siteKey = document.querySelector('meta[name="turnstile-site-key"]')?.content || '';

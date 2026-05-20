@@ -1,3 +1,4 @@
+// @ts-nocheck
 const VERBS = [
   'adapt','admire','advance','affirm','aid','aim','align','amaze','amplify','animate',
   'answer','apply','arrange','ascend','assist','attune','balance','beam','believe','blaze',

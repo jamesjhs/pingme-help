@@ -4,7 +4,7 @@
   "description": "Zero-bloat privacy-first status service for pingme.help",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/public && cp public/styles.css dist/public/styles.css",
     "start": "npm run build && node dist/server.js",
     "test": "npm run build && node --test dist/test/server.test.js",
     "audit": "npm audit --omit=dev"
