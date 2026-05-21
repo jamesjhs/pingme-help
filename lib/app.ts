@@ -605,6 +605,14 @@ function createServer({ config, store }) {
         const passwordConfirm = normalizePassword(payload.passwordConfirm);
         const email = normalizeEmail(payload.email);
         if (!email || !secureCompareText(password, passwordConfirm)) {
+          const reasons = [];
+          if (!email) {
+            reasons.push('missing email');
+          }
+          if (!secureCompareText(password, passwordConfirm)) {
+            reasons.push('password mismatch');
+          }
+          logRequestError(method, url.pathname, new Error(`register validation failed (${reasons.join(', ')})`), 'warn');
           sendJson(response, 400, { ok: false, error: 'Invalid input' });
           return;
         }
@@ -716,6 +724,14 @@ function createServer({ config, store }) {
         const username = loginEmail ? '' : normalizeUsername(identifierRaw);
         const password = normalizePassword(payload.password);
         if (!password || (!loginEmail && !username)) {
+          const reasons = [];
+          if (!password) {
+            reasons.push('missing password');
+          }
+          if (!loginEmail && !username) {
+            reasons.push('missing login identifier');
+          }
+          logRequestError(method, url.pathname, new Error(`login validation failed (${reasons.join(', ')})`), 'warn');
           sendJson(response, 400, { ok: false, error: 'Invalid input' });
           return;
         }
