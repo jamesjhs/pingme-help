@@ -493,3 +493,33 @@ test('internal request errors are emitted to CLI logs with route context', async
     await close();
   }
 });
+
+test('invalid register input emits verbose CLI diagnostics', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const { base, close } = await startServer(makeConfig(tempDir));
+  const originalConsoleWarn = console.warn;
+  const captured = [];
+  console.warn = (...args) => {
+    captured.push(args.join(' '));
+  };
+
+  try {
+    const suggestion = await postJson(base, '/api/register/suggest', {});
+    const register = await postJson(base, '/api/register', {
+      username: suggestion.data.username,
+      password: 'password123',
+      passwordConfirm: 'password124',
+      email: 'user@example.com'
+    });
+
+    assert.equal(register.status, 400);
+    assert.equal(register.data.error, 'Invalid input');
+    const logs = captured.join('\n');
+    assert.match(logs, /\/api\/register/);
+    assert.match(logs, /register validation failed/);
+    assert.match(logs, /password mismatch/);
+  } finally {
+    console.warn = originalConsoleWarn;
+    await close();
+  }
+});
