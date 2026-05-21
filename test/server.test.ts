@@ -139,6 +139,7 @@ test('registration auto logs in and marks the email unverified until the magic l
 
   assert.equal(register.status, 200);
   assert.equal(typeof register.data.session_token, 'string');
+  assert.match(register.data.codeword, /^[a-z]{7}[0-9]{3}$/);
   assert.equal(register.data.dashboard.user.email_verified, false);
   assert.equal(register.data.verification_email_sent, true);
   const user = store.getUser(suggestion.data.username);
@@ -251,7 +252,7 @@ test('user can follow and unfollow a username/codeword pair and check status', a
   store.createCodeword('follower', 'steady-river', '2026-05-19T00:00:00.000Z');
 
   const login = await postJson(base, '/api/login/start', {
-    email: 'follower@example.com',
+    identifier: 'follower@example.com',
     password: 'password123'
   });
   assert.equal(login.status, 200);
@@ -301,7 +302,7 @@ test('admin login returns dashboard with total users and smtp settings', async (
   });
 
   const login = await postJson(base, '/api/login/start', {
-    username: 'admin',
+    identifier: 'admin',
     password: 'temporary_cleartext_password'
   });
 
@@ -325,6 +326,34 @@ test('admin login returns dashboard with total users and smtp settings', async (
   await close();
 });
 
+test('login accepts either email or username via identifier field', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const { base, store, close } = await startServer(makeConfig(tempDir));
+
+  store.registerUser({
+    username: 'devon',
+    passwordHash: hashPassword('password123'),
+    email: 'devon@example.com',
+    createdAt: '2026-05-19T00:00:00.000Z'
+  });
+
+  const emailLogin = await postJson(base, '/api/login/start', {
+    identifier: 'devon@example.com',
+    password: 'password123'
+  });
+  assert.equal(emailLogin.status, 200);
+  assert.equal(emailLogin.data.role, 'user');
+
+  const usernameLogin = await postJson(base, '/api/login/start', {
+    identifier: 'devon',
+    password: 'password123'
+  });
+  assert.equal(usernameLogin.status, 200);
+  assert.equal(usernameLogin.data.role, 'user');
+
+  await close();
+});
+
 test('user dashboard can resend email verification and change password', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
   const mailer = mockMailer();
@@ -342,7 +371,7 @@ test('user dashboard can resend email verification and change password', async (
   });
 
   const login = await postJson(base, '/api/login/start', {
-    email: 'riley@example.com',
+    identifier: 'riley@example.com',
     password: 'password123'
   });
 
@@ -427,7 +456,7 @@ test('internal request errors are emitted to CLI logs with route context', async
     };
 
     const login = await postJson(base, '/api/login/start', {
-      username: 'admin',
+      identifier: 'admin',
       password: 'temporary_cleartext_password'
     });
 

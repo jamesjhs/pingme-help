@@ -8,9 +8,10 @@
   let currentSession = null;
   let pingerSession = null;
   let installPromptEvent = null;
+  let setAuthMode = () => {};
 
   async function setupPwaShell() {
-    const installButton = document.getElementById('install-app-button');
+    const installButton = document.getElementById('install-app-link');
     const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     if (standalone) {
       document.body.classList.add('pwa-standalone');
@@ -189,34 +190,34 @@
 
   function updateHomeLayout() {
     const homeTabs = document.getElementById('home-tabs');
-    const loggedInBanner = document.getElementById('logged-in-banner');
     const quickStatusForm = document.getElementById('quick-status-form');
     const quickStatusFeedback = document.getElementById('quick-status-feedback');
     const publicSendForm = document.getElementById('send-ping-form');
+    const sendUserHeading = document.getElementById('send-user-heading');
     const siteVerification = document.getElementById('site-verification');
+    const topbarTagline = document.getElementById('topbar-tagline');
     const pitchCard = document.querySelector('.pitch-card');
     const isLoggedIn = Boolean(currentSession);
     const isUser = isLoggedIn && currentSession.role === 'user';
     const isAdmin = isLoggedIn && currentSession.role === 'admin';
     const tabSend = document.getElementById('tab-btn-send');
     const tabCheck = document.getElementById('tab-btn-check');
-    const tabRegister = document.getElementById('tab-btn-register');
     const tabLogin = document.getElementById('tab-btn-login');
     const tabAccount = document.getElementById('tab-btn-account');
     const tabFollows = document.getElementById('tab-btn-follows');
 
     show(homeTabs, !isAdmin);
-    show(loggedInBanner, isUser);
     show(publicSendForm, !isUser);
     show(quickStatusForm, isUser);
     show(quickStatusFeedback, isUser);
+    show(sendUserHeading, isUser);
     show(tabSend, !isAdmin);
     show(tabCheck, !isAdmin);
-    show(tabRegister, !isLoggedIn);
     show(tabLogin, !isLoggedIn);
     show(tabAccount, isUser);
     show(tabFollows, isUser);
     show(siteVerification, !isLoggedIn);
+    show(topbarTagline, !isLoggedIn);
     if (pitchCard) {
       pitchCard.hidden = isLoggedIn;
     }
@@ -542,24 +543,14 @@
 
     const userStats = (data.dashboard && data.dashboard.user) || {};
     const stats = userStats.private_stats || {};
-    const usernameNode = document.querySelector('[data-user="usernameBanner"]');
-    if (usernameNode) {
-      usernameNode.textContent = currentSession.username;
-    }
-    const emailNode = dashboard.querySelector('[data-user="email"]');
-    if (emailNode) {
-      emailNode.textContent = userStats.email || '—';
-    }
-    const emailStatusNode = dashboard.querySelector('[data-user="emailVerificationStatus"]');
-    if (emailStatusNode) {
+    const verifyLink = document.getElementById('twofa-email-verify-link');
+    if (verifyLink) {
+      const hasEmail = Boolean(userStats.email);
       const verified = Boolean(userStats.email_verified);
-      emailStatusNode.textContent = verified ? 'verified' : 'unverified';
-      emailStatusNode.dataset.state = verified ? 'verified' : 'unverified';
-    }
-    const resendButton = document.getElementById('user-resend-verification');
-    if (resendButton) {
-      resendButton.disabled = !userStats.email || Boolean(userStats.email_verified);
-      resendButton.classList.toggle('hidden', !userStats.email || Boolean(userStats.email_verified));
+      verifyLink.textContent = verified ? 'verified' : 'unverified';
+      verifyLink.dataset.state = verified ? 'verified' : 'unverified';
+      verifyLink.disabled = !hasEmail || verified;
+      show(verifyLink, hasEmail);
     }
     const lastViewer = dashboard.querySelector('[data-user="lastViewerAccess"]');
     if (lastViewer) {
@@ -621,6 +612,7 @@
     // Switch to the login tab so the user sees a clean logged-out state
     const activateTab = initTabs();
     activateTab('login-panel', false);
+    setAuthMode('login');
   }
 
   async function fetchRegisterSuggestion() {
@@ -636,7 +628,12 @@
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
     if (tabParam) {
-      activateTab(tabParam + '-panel', false);
+      if (tabParam === 'register') {
+        activateTab('login-panel', false);
+        setAuthMode('register');
+      } else {
+        activateTab(tabParam + '-panel', false);
+      }
     }
     const userParam = params.get('user');
     if (userParam) {
@@ -646,11 +643,15 @@
       }
     }
 
-    // CTA "Get started" button on pitch card opens the register tab
+    // CTA "Get started" button on pitch card opens auth tab
     document.querySelectorAll('[data-open-tab]').forEach((button) => {
       button.addEventListener('click', () => {
         const target = button.dataset.openTab;
+        const authMode = button.dataset.authMode;
         activateTab(target, false);
+        if (authMode === 'register') {
+          setAuthMode('register');
+        }
         document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
@@ -666,6 +667,8 @@
     const regenerateCodewordLink = document.getElementById('regenerate-codeword-link');
     const userCodewordCreateForm = document.getElementById('user-codeword-create-form');
     const loginForm = document.getElementById('login-form');
+    const showRegisterLink = document.getElementById('show-register-link');
+    const showLoginLink = document.getElementById('show-login-link');
     const login2faForm = document.getElementById('login-2fa-form');
     const loginFeedback = document.getElementById('login-feedback');
     const forgotPasswordButton = document.getElementById('forgot-password-button');
@@ -710,7 +713,7 @@
         });
     };
 
-    const completeUserLogin = (data, username, message = 'Logged in.') => {
+    const completeUserLogin = (data, username, message = '') => {
       currentSession = {
         sessionToken: data.session_token,
         role: data.role,
@@ -719,9 +722,24 @@
       applyUserDashboard(data);
       activateTab('send-panel', false);
       refreshUserCodeword();
-      setMessage(userDashboardFeedback, message, 'success');
+      setMessage(userDashboardFeedback, message, message ? 'success' : 'info');
     };
     let pendingLoginUsername = '';
+
+    setAuthMode = (mode) => {
+      const showRegister = mode === 'register';
+      show(loginForm, !showRegister);
+      show(registerForm, showRegister);
+      show(login2faForm, false);
+      show(resetConfirmForm, false);
+      if (!showRegister) {
+        setMessage(registerFeedback, '');
+      } else {
+        setMessage(loginFeedback, '');
+      }
+    };
+
+    setAuthMode('login');
 
     if (registerForm) {
       const suggest = async () => {
@@ -765,6 +783,13 @@
         }
       });
     }
+
+    showRegisterLink?.addEventListener('click', () => {
+      setAuthMode('register');
+    });
+    showLoginLink?.addEventListener('click', () => {
+      setAuthMode('login');
+    });
 
     document.querySelectorAll('[data-status-value]').forEach((button) => {
       button.addEventListener('click', async () => {
@@ -826,7 +851,11 @@
       setBusy(loginForm, true);
       setMessage(loginFeedback, 'Signing in…');
       try {
-        const payload = attachTurnstileSession(formPayload(loginForm));
+        const rawPayload = formPayload(loginForm);
+        const payload = attachTurnstileSession({
+          identifier: rawPayload.identifier,
+          password: rawPayload.password
+        });
         const data = await postJson('/api/login/start', payload);
         pendingLoginUsername = data.username || '';
         if (data.requires_2fa) {
@@ -843,11 +872,11 @@
             username: data.username || 'admin'
           };
           applyAdminDashboard(data);
-          setMessage(adminDashboardFeedback, 'Logged in.', 'success');
+          setMessage(adminDashboardFeedback, 'Welcome back.', 'success');
         } else {
           completeUserLogin(data, data.username);
         }
-        setMessage(loginFeedback, 'Logged in.', 'success');
+        setMessage(loginFeedback, '', 'success');
       } catch (error) {
         setMessage(loginFeedback, error.message, 'error');
         if (siteKey) {
@@ -863,7 +892,11 @@
       setBusy(login2faForm, true);
       setMessage(loginFeedback, 'Verifying code…');
       try {
-        const payload = attachTurnstileSession(formPayload(login2faForm));
+        const rawPayload = formPayload(login2faForm);
+        const payload = attachTurnstileSession({
+          challengeId: rawPayload.challengeId,
+          code: String(rawPayload.code || '').replace(/\D+/g, '').slice(0, 6)
+        });
         const data = await postJson('/api/login/verify-2fa', payload);
         show(login2faForm, false);
         show(loginForm, true);
@@ -874,11 +907,11 @@
             username: data.username || pendingLoginUsername || 'admin'
           };
           applyAdminDashboard(data);
-          setMessage(adminDashboardFeedback, 'Logged in.', 'success');
+          setMessage(adminDashboardFeedback, 'Welcome back.', 'success');
         } else {
           completeUserLogin(data, data.username || pendingLoginUsername);
         }
-        setMessage(loginFeedback, 'Logged in.', 'success');
+        setMessage(loginFeedback, '', 'success');
       } catch (error) {
         setMessage(loginFeedback, error.message, 'error');
         if (siteKey) {
@@ -893,9 +926,10 @@
       if (!loginForm) {
         return;
       }
-      const email = String(loginForm.elements.email?.value || '').trim();
+      const identifier = String(loginForm.elements.identifier?.value || '').trim();
+      const email = identifier.includes('@') ? identifier : '';
       if (!email) {
-        setMessage(loginFeedback, 'Enter your email address first.', 'error');
+        setMessage(loginFeedback, 'Enter an email address in the login field first.', 'error');
         return;
       }
       forgotPasswordButton.disabled = true;
@@ -936,6 +970,11 @@
       } finally {
         setBusy(resetConfirmForm, false);
       }
+    });
+
+    login2faForm?.elements?.code?.addEventListener('input', () => {
+      const input = login2faForm.elements.code;
+      input.value = String(input.value || '').replace(/\D+/g, '').slice(0, 6);
     });
 
     checkPingForm?.addEventListener('submit', async (event) => {
@@ -1018,11 +1057,14 @@
       }
     });
 
-    document.getElementById('user-resend-verification')?.addEventListener('click', async (event) => {
+    document.getElementById('twofa-email-verify-link')?.addEventListener('click', async (event) => {
       if (!currentSession) {
         return;
       }
       const button = event.currentTarget;
+      if (button.dataset.state === 'verified') {
+        return;
+      }
       button.disabled = true;
       try {
         const data = await postJson('/api/user/email-verification/resend', {
