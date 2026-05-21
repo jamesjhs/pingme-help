@@ -819,11 +819,7 @@
         try {
           const payload = attachTurnstileSession(formPayload(sendPingForm));
           const result = await postJson('/api/send-ping', payload);
-          setMessage(
-            sendPingFeedback,
-            `Saved. Last checked: ${formatFriendlyTime(result.private_stats.last_viewer_access)}. Burn message viewed: ${result.private_stats.message_viewed_flag ? 'yes' : 'no'}.`,
-            'success'
-          );
+          setMessage(sendPingFeedback, 'Saved.', 'success');
           sendPingForm.reset();
           updateCharCount(burnInput, burnCharCount);
         } catch (error) {

@@ -115,8 +115,8 @@ function renderHomePage(siteKey) {
               <button id="share-codeword-button" class="primary-button" type="button">Share Follow Link</button>
             </form>
 
+            <h3 class="codewords-heading">Codewords</h3>
             <div class="card inset-card">
-              <h3>Codewords</h3>
               <ul id="user-codeword-list"></ul>
             </div>
 

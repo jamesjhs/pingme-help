@@ -335,6 +335,8 @@ textarea {
   min-height: 2.55rem;
   position: absolute;
   right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .field-with-action .input-action-row input {
@@ -516,7 +518,15 @@ textarea:focus {
   margin-top: 1.4rem;
 }
 
-#user-codeword-list {
+#send-panel-codewords .codewords-heading {
+  margin: 1.25rem 0 0.5rem;
+}
+
+#send-panel-codewords > .card {
+  margin-top: 0;
+}
+
+
   margin: 0;
   padding-left: 1.25rem;
   display: grid;
