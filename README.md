@@ -2,7 +2,7 @@
 
 Privacy-first readiness sharing for people who want a lightweight way to check in, share status, and let trusted followers verify that they are safe.
 
-Current application version: `v0.3.0`
+Current application version: `v0.4.0`
 
 ## Feature overview
 

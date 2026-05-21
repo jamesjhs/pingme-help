@@ -9,7 +9,7 @@
 | Layer | Files | Responsibility |
 |---|---|---|
 | Bootstrap | `server.ts` | Starts the HTTP server and handles fatal process errors |
-| Configuration | `lib/config.ts` | Loads environment variables and exports `v0.3.0` |
+| Configuration | `lib/config.ts` | Loads environment variables and exports `v0.4.0` |
 | Security helpers | `lib/security.ts` | Input normalisation, password hashing, comparisons, lockout logic, and HTML escaping |
 | Persistence | `lib/database.ts` | SQLCipher-backed SQLite storage and prepared statements |
 | HTTP app | `lib/app.ts` | Routes, sessions, Turnstile verification, SMTP mail flows, and JSON APIs |
@@ -163,7 +163,57 @@ See `.env.example` for the full template. Key operational values:
 - `SMTP_*` controls email delivery
 - `PORT` changes the HTTP listener
 
-## 9. Validation and release
+## 9. CLI admin credential management
+
+### Admin password
+
+The admin password is resolved at login time from `ADMIN_PASS` in `.env`. If an `admin_password_hash` row exists in the `admin_settings` table it takes precedence; otherwise the plaintext `ADMIN_PASS` value is used directly.
+
+To change the password via the CLI:
+
+1. Stop the service.
+2. Update `ADMIN_PASS` in `.env`.
+3. Restart the service.
+
+If a database-stored hash needs to be cleared first:
+
+```bash
+node -e "
+const { DatabaseStore } = require('./dist/lib/database');
+require('dotenv').config();
+const store = new DatabaseStore(
+  require('path').join(__dirname, 'data', 'pingme-help.sqlite'),
+  process.env.DB_ENCRYPTION_KEY
+);
+store.db.prepare(\"DELETE FROM admin_settings WHERE setting_key = 'admin_password_hash'\").run();
+console.log('admin_password_hash cleared');
+store.db.close();
+"
+```
+
+### Admin 2FA email address
+
+The admin 2FA email address is stored in the `admin_settings` table under the key `admin_twofa_email`. It can be updated without a service restart:
+
+```bash
+npm run build   # ensure dist/ is current
+
+node -e "
+const { DatabaseStore } = require('./dist/lib/database');
+require('dotenv').config();
+const store = new DatabaseStore(
+  require('path').join(__dirname, 'data', 'pingme-help.sqlite'),
+  process.env.DB_ENCRYPTION_KEY
+);
+store.setSetting('admin_twofa_email', 'admin@example.com');
+console.log('admin_twofa_email updated');
+store.db.close();
+"
+```
+
+Replace `admin@example.com` with the desired address. The change is effective immediately for subsequent login attempts.
+
+## 10. Validation and release
 
 Use:
 
