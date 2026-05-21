@@ -1296,6 +1296,30 @@
       }
     });
 
+    document.getElementById('admin-password-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!currentSession || currentSession.role !== 'admin') {
+        return;
+      }
+      const form = event.currentTarget;
+      setBusy(form, true);
+      try {
+        const payload = formPayload(form);
+        await postJson('/api/admin/password', {
+          sessionToken: currentSession.sessionToken,
+          currentPassword: payload.currentPassword,
+          newPassword: payload.newPassword,
+          newPasswordConfirm: payload.newPasswordConfirm
+        });
+        form.reset();
+        setMessage(adminDashboardFeedback, 'Admin password updated.', 'success');
+      } catch (error) {
+        setMessage(adminDashboardFeedback, error.message, 'error');
+      } finally {
+        setBusy(form, false);
+      }
+    });
+
     document.getElementById('admin-smtp-form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (!currentSession || currentSession.role !== 'admin') {

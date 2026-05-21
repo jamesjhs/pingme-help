@@ -1148,6 +1148,32 @@ function createServer({ config, store }) {
         return;
       }
 
+      if (url.pathname === '/api/admin/password') {
+        const { session } = ensureAuthedSession(payload, sessions, 'admin');
+        if (session.role !== 'admin') {
+          sendJson(response, 403, { ok: false, error: 'Forbidden' });
+          return;
+        }
+        const currentPassword = normalizePassword(payload.currentPassword);
+        const newPassword = normalizePassword(payload.newPassword);
+        const newPasswordConfirm = normalizePassword(payload.newPasswordConfirm);
+        if (!secureCompareText(newPassword, newPasswordConfirm)) {
+          sendJson(response, 400, { ok: false, error: 'Passwords do not match' });
+          return;
+        }
+        const adminPasswordHash = store.getAdminPasswordHash();
+        const validCurrentPassword = adminPasswordHash
+          ? verifyPassword(currentPassword, adminPasswordHash)
+          : secureCompareText(currentPassword, config.adminPass);
+        if (!validCurrentPassword) {
+          sendJson(response, 401, { ok: false, error: 'Current password is incorrect' });
+          return;
+        }
+        store.setAdminPasswordHash(hashPassword(newPassword));
+        sendJson(response, 200, { ok: true });
+        return;
+      }
+
       if (url.pathname === '/api/admin/twofa') {
         const { session } = ensureAuthedSession(payload, sessions, 'admin');
         if (session.role !== 'admin') {
