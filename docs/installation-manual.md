@@ -100,7 +100,7 @@ pm2 save
 
 ## 9. Post-install verification checklist
 
-- Homepage loads with tabs for Send a Ping, Register, Login, and Check a Ping.
+- Homepage loads with tabs for Send a Ping, Register/Login, and Check a Ping.
 - `GET /readyz` returns `ok: true` and `version: v0.1.0`.
 - Turnstile challenge renders when keys are configured.
 - Registration emails send successfully when SMTP is configured.

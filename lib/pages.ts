@@ -32,17 +32,22 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
 <body data-view="${escapeHtml(view)}">
   <div class="shell">
     <header class="topbar">
-      <a class="brand" href="/">pingme.help</a>
-      <div class="topbar-actions">
-        <button id="install-app-button" class="icon-button install-app-button hidden" type="button" aria-label="Install app">⤓</button>
-        <button id="topbar-share-link" class="topbar-share-link" type="button">Share PingMe</button>
-        <a id="topbar-username-link" class="topbar-username-link hidden" href="/"></a>
+      <div class="topbar-main">
+        <a class="brand" href="/">pingme.help</a>
+        <div class="topbar-actions">
+          <button id="topbar-share-link" class="topbar-share-link" type="button">Share PingMe</button>
+          <a id="topbar-username-link" class="topbar-username-link hidden" href="/"></a>
+        </div>
       </div>
+      <p id="topbar-tagline" class="topbar-tagline">someone cares if you get home safe.</p>
     </header>
     <main class="page">${content}</main>
     <footer class="footer">
       <div>&copy;jahosi.co.uk 2026 | v0.2.0</div>
-      <a href="/privacy">Privacy Policy</a>
+      <div class="footer-links">
+        <button id="install-app-link" class="text-link-button hidden" type="button">install app</button>
+        <a href="/privacy">Privacy Policy</a>
+      </div>
     </footer>
   </div>
 </body>
@@ -55,21 +60,20 @@ function renderHomePage(siteKey) {
     view: 'home',
     turnstileSiteKey: siteKey,
     content: `
-      <section id="logged-in-banner" class="card hidden" aria-live="polite">
-        Logged in as <span data-user="usernameBanner"></span>
-      </section>
-
       <section id="home-tabs" class="tabs card" aria-label="Homepage actions">
         <div class="tab-row" role="tablist">
           <button class="tab-button" type="button" id="tab-btn-send" data-tab-target="send-panel" role="tab" aria-selected="false" aria-controls="send-panel">Send a Ping</button>
-          <button class="tab-button" type="button" id="tab-btn-register" data-tab-target="register-panel" role="tab" aria-selected="false" aria-controls="register-panel">Register</button>
-          <button class="tab-button" type="button" id="tab-btn-login" data-tab-target="login-panel" role="tab" aria-selected="false" aria-controls="login-panel">Login</button>
+          <button class="tab-button" type="button" id="tab-btn-login" data-tab-target="login-panel" role="tab" aria-selected="false" aria-controls="login-panel">Register/Login</button>
           <button class="tab-button" type="button" id="tab-btn-check" data-tab-target="check-panel" role="tab" aria-selected="false" aria-controls="check-panel">Check a Ping</button>
           <button class="tab-button hidden" type="button" id="tab-btn-follows" data-tab-target="follows-panel" role="tab" aria-selected="false" aria-controls="follows-panel">Follows</button>
           <button class="tab-button hidden" type="button" id="tab-btn-account" data-tab-target="account-panel" role="tab" aria-selected="false" aria-controls="account-panel">Account</button>
         </div>
 
         <section id="send-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-send" hidden>
+          <div id="send-user-heading" class="hidden">
+            <p class="eyebrow">Account</p>
+            <h2>Manage your check-ins and followers</h2>
+          </div>
           <form id="send-ping-form" class="stack-form public-send-form" novalidate>
             <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
@@ -100,38 +104,37 @@ function renderHomePage(siteKey) {
           <div id="send-ping-feedback" class="feedback" aria-live="polite"></div>
         </section>
 
-        <section id="register-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-register" hidden>
-          <form id="register-form" class="stack-form" novalidate>
+        <section id="login-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-login" hidden>
+          <form id="login-form" class="stack-form" novalidate>
+            <label><span>Email Address or Username</span><input name="identifier" type="text" maxlength="254" required autocomplete="username" ${CA}></label>
+            <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
+            <button class="primary-button" type="submit" data-public-action>Login</button>
+            <div class="auth-link-row">
+              <button id="forgot-password-button" class="text-link-button" type="button" data-public-action>Forgot Password</button>
+              <button id="show-register-link" class="text-link-button" type="button" data-public-action>Sign up</button>
+            </div>
+          </form>
+          <form id="register-form" class="stack-form hidden" novalidate>
             <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
             <label><span>Confirm Password</span><input name="passwordConfirm" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
-            <div class="register-action-row">
-              <div class="register-username-box">
-                <span class="register-username-label">Generated Username</span>
-                <div class="input-action-row">
-                  <input id="register-username" name="username" type="text" maxlength="32" required autocomplete="off" readonly ${CA}>
-                  <button id="regenerate-username-button" class="icon-button" type="button" aria-label="Generate another username">
-                    <span aria-hidden="true">🔄</span>
-                  </button>
-                </div>
+            <label class="field-with-action">
+              <span>Generated Username</span>
+              <div class="input-action-row">
+                <input id="register-username" name="username" type="text" maxlength="32" required autocomplete="off" readonly ${CA}>
+                <button id="regenerate-username-button" class="icon-button input-inline-action" type="button" aria-label="Generate another username">
+                  <span aria-hidden="true">🔄</span>
+                </button>
               </div>
-              <button class="primary-button" type="submit" data-public-action>Register</button>
+            </label>
+            <button class="primary-button compact-button" type="submit" data-public-action>Register</button>
+            <div class="auth-link-row">
+              <button id="show-login-link" class="text-link-button" type="button" data-public-action>Back to login</button>
             </div>
           </form>
           <div id="register-feedback" class="feedback" aria-live="polite"></div>
-        </section>
-
-        <section id="login-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-login" hidden>
-          <form id="login-form" class="stack-form" novalidate>
-            <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
-            <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
-            <div class="login-actions-row">
-              <button class="primary-button" type="submit" data-public-action>Login</button>
-              <button id="forgot-password-button" class="primary-button" type="button" data-public-action>Forgot Password</button>
-            </div>
-          </form>
           <form id="login-2fa-form" class="stack-form hidden" novalidate>
-            <label><span>Secret Code</span><input name="code" type="text" maxlength="6" required autocomplete="one-time-code" ${CA}></label>
+            <label><span>Secret Code</span><input name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" required autocomplete="one-time-code" ${CA}></label>
             <input name="challengeId" type="hidden" value="">
             <button class="primary-button" type="submit" data-public-action>Verify 2FA</button>
           </form>
@@ -159,7 +162,7 @@ function renderHomePage(siteKey) {
             <button id="pinger-reveal-message" class="blur-card hidden" type="button">View burn message (view once)</button>
             <div id="pinger-message" class="card inset-card hidden"></div>
             <div class="pinger-register-note">
-              Want subscription alerts? <a href="/?tab=register">Create an account</a> and follow this username with a shared codeword.
+              Want subscription alerts? <a href="/?tab=login">Create an account</a> and follow this username with a shared codeword.
             </div>
           </section>
         </section>
@@ -188,12 +191,7 @@ function renderHomePage(siteKey) {
         <section id="account-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-account" hidden>
           <section id="user-dashboard" class="card inset-card" aria-live="polite">
             <p class="eyebrow">Account</p>
-            <h2>Manage your check-ins and followers</h2>
-            <p>
-              <strong>Email:</strong>
-              <span data-user="email">—</span>
-              <span data-user="emailVerificationStatus" class="verification-status">unverified</span>
-            </p>
+            <h2>Security settings</h2>
             <p><strong>Last checked by:</strong> <span data-user="lastViewerAccess">Never</span></p>
             <p><strong>Message viewed:</strong> <span data-user="messageViewed">Not viewed</span></p>
 
@@ -213,10 +211,14 @@ function renderHomePage(siteKey) {
               <button class="primary-button" type="submit">Send Invite</button>
             </form>
 
-            <button id="user-resend-verification" class="primary-button" type="button">Resend Verification Email</button>
-
             <form id="user-twofa-form" class="stack-form" novalidate>
-              <label><span>2FA Email</span><input name="email" type="email" maxlength="254" autocomplete="email" ${CA}></label>
+              <label class="field-with-action">
+                <span>2FA Email</span>
+                <div class="input-action-row">
+                  <input name="email" type="email" maxlength="254" autocomplete="email" ${CA}>
+                  <button id="twofa-email-verify-link" class="text-link-button verification-link hidden" type="button">unverified</button>
+                </div>
+              </label>
               <label class="confirm-label"><input type="checkbox" name="enabled"><span>Enable email 2FA for login</span></label>
               <button class="primary-button" type="submit">Save 2FA Settings</button>
             </form>
@@ -245,7 +247,7 @@ function renderHomePage(siteKey) {
 
       <section class="card pitch-card" aria-label="About PingMe.help">
         <p class="eyebrow">Why PingMe.help?</p>
-        <h2 class="pitch-headline">Someone cares if you get home safe.</h2>
+        <h2 class="pitch-headline">Private check-ins without the noise.</h2>
         <p class="pitch-lede">PingMe.help is the private, zero-noise check-in service for people who look out for each other — no apps to install, no accounts to share, no data to sell.</p>
         <ul class="pitch-features">
           <li class="pitch-feature">
@@ -277,7 +279,7 @@ function renderHomePage(siteKey) {
             </div>
           </li>
         </ul>
-        <button class="primary-button pitch-cta" type="button" data-open-tab="register-panel">Get started — it&#39;s free &rarr;</button>
+        <button class="primary-button pitch-cta" type="button" data-open-tab="login-panel" data-auth-mode="register">Get started — it&#39;s free &rarr;</button>
       </section>
 
       <section id="admin-dashboard" class="card hidden" aria-live="polite">

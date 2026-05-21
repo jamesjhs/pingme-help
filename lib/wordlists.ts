@@ -93,6 +93,7 @@ const VERB_LIST = firstNUnique([...VERBS, ...EXTRA_VERBS], 200);
 const NOUN_LIST = firstNUnique([...USERNAME_NOUNS, ...EXTRA_NOUNS], 200);
 const ADJECTIVE_LIST = firstNUnique([...ADJECTIVES, ...EXTRA_ADJECTIVES], 200);
 const CODEWORD_NOUNS = NOUN_LIST;
+const SEVEN_LETTER_CODEWORD_NOUNS = CODEWORD_NOUNS.filter((noun) => /^[a-z]{7}$/.test(noun));
 
 function pickRandom(values) {
   return values[crypto.randomInt(values.length)];
@@ -103,7 +104,11 @@ function generateVerbNounUsername() {
 }
 
 function generateAdjectiveNounCodeword() {
-  return `${pickRandom(ADJECTIVE_LIST)}-${pickRandom(CODEWORD_NOUNS)}`;
+  const noun = SEVEN_LETTER_CODEWORD_NOUNS.length > 0
+    ? pickRandom(SEVEN_LETTER_CODEWORD_NOUNS)
+    : pickRandom(CODEWORD_NOUNS).replace(/[^a-z]/g, '').slice(0, 7).padEnd(7, 'x');
+  const suffix = String(crypto.randomInt(1000)).padStart(3, '0');
+  return `${noun}${suffix}`;
 }
 
 module.exports = {

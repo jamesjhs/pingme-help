@@ -58,6 +58,19 @@ textarea {
   gap: 1rem;
 }
 
+.topbar {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0.5rem 0 1rem;
+}
+
+.topbar-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .topbar-actions {
   display: inline-flex;
   align-items: center;
@@ -79,8 +92,11 @@ textarea {
   text-decoration: none;
 }
 
-.topbar {
-  padding: 0.5rem 0 1rem;
+.topbar-tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
 }
 
 .brand {
@@ -239,14 +255,6 @@ textarea {
   color: var(--accent);
 }
 
-.install-app-button {
-  width: 2.4rem;
-  min-height: 2.4rem;
-  border-radius: 999px;
-  padding: 0;
-  font-size: 1rem;
-}
-
 .icon-button svg {
   width: 1.5rem;
   height: 1.5rem;
@@ -255,27 +263,6 @@ textarea {
 .icon-button span {
   font-size: 1.25rem;
   line-height: 1;
-}
-
-.register-action-row,
-.login-actions-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.75rem;
-  align-items: stretch;
-}
-
-.register-username-box {
-  display: grid;
-  gap: 0.35rem;
-  min-width: 0;
-}
-
-.register-username-label {
-  font-size: 0.78rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 textarea {
@@ -296,6 +283,12 @@ textarea {
 .link-button {
   cursor: pointer;
   min-height: 3.15rem;
+}
+
+.compact-button {
+  min-height: 2.55rem;
+  padding-top: 0.56rem;
+  padding-bottom: 0.56rem;
 }
 
 .status-button.ok {
@@ -322,6 +315,61 @@ textarea {
   align-items: center;
   justify-content: center;
   text-decoration: none;
+}
+
+.text-link-button {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  padding: 0;
+  min-height: unset;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.auth-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.field-with-action .input-action-row {
+  position: relative;
+}
+
+.input-inline-action {
+  width: 2.55rem;
+  min-height: 2.55rem;
+  position: absolute;
+  right: 0.25rem;
+}
+
+.field-with-action .input-action-row input {
+  padding-right: 3.15rem;
+}
+
+.verification-link {
+  min-width: 6.5rem;
+  text-transform: lowercase;
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.35rem 0.6rem;
+  justify-self: end;
+}
+
+.verification-link[data-state='verified'] {
+  color: var(--ok);
+  background: rgba(25, 135, 84, 0.12);
+  cursor: default;
+}
+
+.verification-link[data-state='unverified'] {
+  color: var(--danger);
+  background: rgba(192, 50, 33, 0.12);
 }
 
 .turnstile-shell {
@@ -354,12 +402,6 @@ textarea {
   color: var(--ok);
 }
 
-#logged-in-banner {
-  text-align: center;
-  font-size: clamp(1.2rem, 2.6vw, 1.5rem);
-  font-weight: 800;
-}
-
 .hidden {
   display: none !important;
 }
@@ -383,25 +425,6 @@ textarea {
 .status-pill[data-state='not-ok'] {
   background: rgba(192, 50, 33, 0.12);
   color: var(--danger);
-}
-
-.verification-status {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 0.5rem;
-  padding: 0.2rem 0.65rem;
-  border-radius: 999px;
-  background: rgba(192, 50, 33, 0.12);
-  color: var(--danger);
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-transform: lowercase;
-}
-
-.verification-status[data-state='verified'] {
-  background: rgba(25, 135, 84, 0.12);
-  color: var(--ok);
 }
 
 .timestamp-copy {
@@ -482,6 +505,14 @@ textarea:focus {
   text-align: center;
   color: var(--muted);
   margin-top: 1.5rem;
+}
+
+.footer-links {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .prose-card h2 {
@@ -650,6 +681,15 @@ input[type="checkbox"] {
     border-radius: 1rem;
     background: rgba(12, 18, 32, 0.78);
     backdrop-filter: blur(12px);
+  }
+
+  .topbar-main {
+    align-items: flex-start;
+    gap: 0.85rem;
+  }
+
+  .topbar-actions {
+    margin-left: auto;
   }
 }
 

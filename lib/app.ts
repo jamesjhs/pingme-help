@@ -710,8 +710,10 @@ function createServer({ config, store }) {
           return;
         }
 
-        const loginEmail = normalizeEmail(payload.email);
-        const username = loginEmail ? '' : normalizeUsername(payload.username);
+        const identifierRaw = String(payload.identifier || payload.email || payload.username || '').trim();
+        const identifierLooksLikeEmail = identifierRaw.includes('@');
+        const loginEmail = identifierLooksLikeEmail ? normalizeEmail(identifierRaw) : null;
+        const username = loginEmail ? '' : normalizeUsername(identifierRaw);
         const password = normalizePassword(payload.password);
         if (!password || (!loginEmail && !username)) {
           sendJson(response, 400, { ok: false, error: 'Invalid input' });
@@ -819,7 +821,7 @@ function createServer({ config, store }) {
           return;
         }
         const challengeId = String(payload.challengeId || '');
-        const code = String(payload.code || '').trim();
+        const code = String(payload.code || '').replace(/\D+/g, '').slice(0, 6);
         const challenge = loginChallenges.get(challengeId);
         if (!challenge || challenge.expiresAt <= Date.now() || !verifyPassword(code, challenge.codeHash)) {
           sendJson(response, 401, { ok: false, error: 'Invalid or expired code' });

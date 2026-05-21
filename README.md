@@ -7,7 +7,7 @@ Current application version: `v0.1.0`
 ## Feature overview
 
 - PWA-ready homepage with install prompt, manifest, and service worker shell caching.
-- Public homepage flows for **Send a Ping**, **Register**, **Login**, and **Check a Ping**.
+- Public homepage flows for **Send a Ping**, **Register/Login**, and **Check a Ping**.
 - Email-first authentication for users, with admin username fallback support.
 - Email verification, email-based password reset, and optional email 2FA for users and admins.
 - Shared codewords for follower access, including one-read burn messages.
