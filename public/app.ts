@@ -381,7 +381,7 @@
     list.innerHTML = '';
     items.forEach((item) => {
       const row = document.createElement('li');
-      row.innerHTML = `<strong>${item.codeword}</strong> — ${item.is_active ? 'active' : 'disabled'} | checked: ${formatFriendlyTime(item.last_checked_at)} | burn viewed: ${formatFriendlyTime(item.last_burn_viewed_at)}`;
+      row.innerHTML = `<strong>${item.codeword}</strong> — ${item.is_active ? 'active' : 'disabled'}`;
       const toggleButton = document.createElement('button');
       toggleButton.type = 'button';
       toggleButton.className = item.is_active ? 'destructive-button' : 'primary-button';
@@ -404,17 +404,36 @@
       const reshareButton = document.createElement('button');
       reshareButton.type = 'button';
       reshareButton.className = 'primary-button';
-      reshareButton.textContent = 'Reshare';
+      reshareButton.textContent = 'Share';
       reshareButton.addEventListener('click', async () => {
         const link = `${window.location.origin}/?tab=check&user=${encodeURIComponent(currentSession?.username || '')}`;
-        const payload = `PingMe check\nUsername: ${currentSession?.username || ''}\nCodeword: ${item.codeword}\nLink: ${link}`;
-        await navigator.clipboard.writeText(payload).catch(() => {});
-        showSharePopup('share link copied');
+        const shareText = `PingMe check\nUsername: ${currentSession?.username || ''}\nCodeword: ${item.codeword}\nLink: ${link}`;
+        await navigator.clipboard.writeText(shareText).catch(() => {});
+        showSharePopup(`Copied! Share this:\nLink: ${link}\nCodeword: ${item.codeword}`);
+      });
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'destructive-button';
+      deleteButton.textContent = 'Delete';
+      deleteButton.addEventListener('click', async () => {
+        if (!currentSession) {
+          return;
+        }
+        try {
+          const result = await postJson('/api/user/codewords/delete', {
+            sessionToken: currentSession.sessionToken,
+            id: item.id
+          });
+          setCodewordList(result.codewords || []);
+        } catch {
+          // no-op
+        }
       });
       const actions = document.createElement('div');
       actions.className = 'codeword-actions';
       actions.appendChild(toggleButton);
       actions.appendChild(reshareButton);
+      actions.appendChild(deleteButton);
       row.appendChild(actions);
       list.appendChild(row);
     });
@@ -544,7 +563,6 @@
     updateHomeLayout();
 
     const userStats = (data.dashboard && data.dashboard.user) || {};
-    const stats = userStats.private_stats || {};
     const verifyLink = document.getElementById('twofa-email-verify-link');
     if (verifyLink) {
       const hasEmail = Boolean(userStats.email);
@@ -553,14 +571,6 @@
       verifyLink.dataset.state = verified ? 'verified' : 'unverified';
       verifyLink.disabled = !hasEmail || verified;
       show(verifyLink, hasEmail);
-    }
-    const lastViewer = dashboard.querySelector('[data-user="lastViewerAccess"]');
-    if (lastViewer) {
-      lastViewer.textContent = formatFriendlyTime(stats.last_viewer_access);
-    }
-    const viewed = dashboard.querySelector('[data-user="messageViewed"]');
-    if (viewed) {
-      viewed.textContent = stats.message_viewed_flag ? 'Viewed' : 'Not viewed';
     }
     const twofaForm = document.getElementById('user-twofa-form');
     if (twofaForm) {
@@ -658,6 +668,13 @@
       });
     });
 
+    // Prevent the topbar username link from reloading the page (session is in memory)
+    document.getElementById('topbar-username-link')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      activateTab('account-panel', false);
+      document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
     const sendPingForm = document.getElementById('send-ping-form');
     const sendPingFeedback = document.getElementById('send-ping-feedback');
     const quickStatusForm = document.getElementById('quick-status-form');
@@ -666,7 +683,8 @@
     const registerFeedback = document.getElementById('register-feedback');
     const registerUsername = document.getElementById('register-username');
     const regenerateUsernameButton = document.getElementById('regenerate-username-button');
-    const regenerateCodewordLink = document.getElementById('regenerate-codeword-link');
+    const regenerateCodewordButton = document.getElementById('regenerate-codeword-button');
+    const shareCodwordButton = document.getElementById('share-codeword-button');
     const userCodewordCreateForm = document.getElementById('user-codeword-create-form');
     const loginForm = document.getElementById('login-form');
     const showRegisterLink = document.getElementById('show-register-link');
@@ -1109,32 +1127,40 @@
       }
     });
 
-    userCodewordCreateForm?.addEventListener('submit', async (event) => {
+    userCodewordCreateForm?.addEventListener('submit', (event) => {
       event.preventDefault();
+    });
+
+    regenerateCodewordButton?.addEventListener('click', () => {
+      refreshUserCodeword();
+    });
+
+    shareCodwordButton?.addEventListener('click', async () => {
       if (!currentSession) {
         return;
       }
-      const form = event.currentTarget;
-      setBusy(form, true);
+      const input = userCodewordCreateForm?.elements?.codeword;
+      const codeword = String(input?.value || '').trim();
+      if (!codeword) {
+        return;
+      }
+      shareCodwordButton.disabled = true;
       try {
-        const payload = formPayload(form);
         const data = await postJson('/api/user/codewords/create', {
           sessionToken: currentSession.sessionToken,
-          codeword: payload.codeword
+          codeword
         });
         setCodewordList(data.codewords || []);
         refreshUserCodeword();
-        setMessage(userDashboardFeedback, 'Codeword created.', 'success');
+        const link = `${window.location.origin}/?tab=check&user=${encodeURIComponent(currentSession.username)}`;
+        const shareText = `PingMe check\nUsername: ${currentSession.username}\nCodeword: ${codeword}\nLink: ${link}`;
+        await navigator.clipboard.writeText(shareText).catch(() => {});
+        showSharePopup(`Copied! Share this:\nLink: ${link}\nCodeword: ${codeword}`);
       } catch (error) {
         setMessage(userDashboardFeedback, error.message, 'error');
       } finally {
-        setBusy(form, false);
+        shareCodwordButton.disabled = false;
       }
-    });
-
-    regenerateCodewordLink?.addEventListener('click', (event) => {
-      event.preventDefault();
-      refreshUserCodeword();
     });
 
     document.getElementById('user-invite-form')?.addEventListener('submit', async (event) => {

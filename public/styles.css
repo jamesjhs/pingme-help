@@ -456,6 +456,13 @@ textarea:focus {
 
 #user-dashboard {
   border-color: rgba(162, 184, 219, 0.24);
+  display: grid;
+  gap: 1.4rem;
+}
+
+#user-dashboard .eyebrow,
+#user-dashboard h2 {
+  margin: 0;
 }
 
 #user-dashboard .stack-form {

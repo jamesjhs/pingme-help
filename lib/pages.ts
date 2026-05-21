@@ -103,9 +103,16 @@ function renderHomePage(siteKey) {
           <div id="send-ping-feedback" class="feedback" aria-live="polite"></div>
           <div id="send-panel-codewords" class="hidden">
             <form id="user-codeword-create-form" class="stack-form" novalidate>
-              <label><span>New Shared Codeword</span><input name="codeword" type="text" maxlength="64" required readonly autocomplete="off" ${CA}></label>
-              <small><a href="#" id="regenerate-codeword-link">Regenerate codeword</a></small>
-              <button class="primary-button" type="submit">Create Codeword</button>
+              <label class="field-with-action">
+                <span>New Shared Codeword</span>
+                <div class="input-action-row">
+                  <input name="codeword" type="text" maxlength="64" required readonly autocomplete="off" ${CA}>
+                  <button id="regenerate-codeword-button" class="icon-button input-inline-action" type="button" aria-label="Generate another codeword">
+                    <span aria-hidden="true">🔄</span>
+                  </button>
+                </div>
+              </label>
+              <button id="share-codeword-button" class="primary-button" type="button">Share Follow Link</button>
             </form>
 
             <div class="card inset-card">
@@ -206,9 +213,9 @@ function renderHomePage(siteKey) {
         <section id="account-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-account" hidden>
           <section id="user-dashboard" class="card inset-card" aria-live="polite">
             <p class="eyebrow">Account</p>
-            <h2>Followers</h2>
-            <p><strong>Last checked by:</strong> <span data-user="lastViewerAccess">Never</span></p>
-            <p><strong>Message viewed:</strong> <span data-user="messageViewed">Not viewed</span></p>
+            <h2>Account Settings</h2>
+
+            <button id="user-logout" class="destructive-button" type="button">Logout</button>
 
             <form id="user-twofa-form" class="stack-form" novalidate>
               <label class="field-with-action">
@@ -234,7 +241,6 @@ function renderHomePage(siteKey) {
               <button class="destructive-button" id="user-delete-button" type="submit" disabled>Delete Account</button>
             </form>
 
-            <button id="user-logout" class="destructive-button" type="button">Logout</button>
             <div id="user-dashboard-feedback" class="feedback" aria-live="polite"></div>
           </section>
         </section>
