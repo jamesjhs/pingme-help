@@ -290,7 +290,7 @@ test('user can follow and unfollow a username/codeword pair and check status', a
   await close();
 });
 
-test('admin login returns dashboard with total users and smtp settings', async () => {
+test('admin can update password and dashboard settings', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
   const { base, store, close } = await startServer(makeConfig(tempDir));
 
@@ -322,6 +322,28 @@ test('admin login returns dashboard with total users and smtp settings', async (
 
   assert.equal(updateSmtp.status, 200);
   assert.equal(updateSmtp.data.smtp.host, 'smtp.example.com');
+
+  const changePassword = await postJson(base, '/api/admin/password', {
+    sessionToken: login.data.session_token,
+    currentPassword: 'temporary_cleartext_password',
+    newPassword: 'new-admin-password',
+    newPasswordConfirm: 'new-admin-password'
+  });
+
+  assert.equal(changePassword.status, 200);
+
+  const oldPasswordLogin = await postJson(base, '/api/login/start', {
+    identifier: 'admin',
+    password: 'temporary_cleartext_password'
+  });
+  assert.equal(oldPasswordLogin.status, 401);
+
+  const newPasswordLogin = await postJson(base, '/api/login/start', {
+    identifier: 'admin',
+    password: 'new-admin-password'
+  });
+  assert.equal(newPasswordLogin.status, 200);
+  assert.equal(newPasswordLogin.data.role, 'admin');
 
   await close();
 });

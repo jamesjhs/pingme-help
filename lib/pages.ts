@@ -298,6 +298,13 @@ function renderHomePage(siteKey) {
           <button class="primary-button" type="submit">Save Admin 2FA</button>
         </form>
 
+        <form id="admin-password-form" class="stack-form" novalidate>
+          <label><span>Current Password</span><input name="currentPassword" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
+          <label><span>New Password</span><input name="newPassword" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
+          <label><span>Confirm New Password</span><input name="newPasswordConfirm" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
+          <button class="primary-button" type="submit">Change Admin Password</button>
+        </form>
+
         <form id="admin-smtp-form" class="stack-form" novalidate>
           <label><span>SMTP Host</span><input name="host" type="text" maxlength="255" autocomplete="off" ${CA}></label>
           <label><span>SMTP Port</span><input name="port" type="number" min="1" max="65535" required ${CA}></label>
