@@ -48,6 +48,65 @@
     });
   }
 
+  // ── Version check / cache-bust on deploy ─────────────────────────────────
+  const VERSION_STORAGE_KEY = 'pingme_version';
+  const VERSION_POLL_MS = 5 * 60 * 1000; // 5 minutes
+
+  async function performAppUpdate() {
+    const btn = document.querySelector('#update-banner button');
+    if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+    let latestVersion = null;
+    try {
+      const r = await fetch('/api/version', { cache: 'no-store', credentials: 'same-origin' });
+      if (r.ok) { latestVersion = (await r.json()).version; }
+    } catch { /* best-effort */ }
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((reg) => reg.unregister()));
+      }
+      localStorage.removeItem(VERSION_STORAGE_KEY);
+      if (latestVersion) {
+        localStorage.setItem(VERSION_STORAGE_KEY, latestVersion);
+      }
+    } catch { /* best-effort */ }
+    window.location.reload();
+  }
+
+  function showUpdateBanner() {
+    if (document.getElementById('update-banner')) {
+      return;
+    }
+    const banner = document.createElement('div');
+    banner.id = 'update-banner';
+    banner.className = 'update-banner';
+    banner.innerHTML =
+      '<span>A new version of pingme.help is available.</span>' +
+      '<button type="button">🔄 Update Now</button>';
+    banner.querySelector('button')?.addEventListener('click', performAppUpdate);
+    document.body.prepend(banner);
+  }
+
+  async function checkAssetVersion() {
+    try {
+      const r = await fetch('/api/version', { cache: 'no-store', credentials: 'same-origin' });
+      if (!r.ok) { return; }
+      const { version } = await r.json();
+      const stored = localStorage.getItem(VERSION_STORAGE_KEY);
+      if (stored === null) {
+        localStorage.setItem(VERSION_STORAGE_KEY, version);
+        return;
+      }
+      if (stored !== version) {
+        showUpdateBanner();
+      }
+    } catch { /* best-effort */ }
+  }
+
   function setMessage(element, message, tone = 'info') {
     if (!element) {
       return;
@@ -559,6 +618,9 @@
     show(document.getElementById('admin-dashboard'), false);
     show(document.getElementById('pinger-dashboard'), false);
     updateHomeLayout();
+    // Switch to the login tab so the user sees a clean logged-out state
+    const activateTab = initTabs();
+    activateTab('login-panel', false);
   }
 
   async function fetchRegisterSuggestion() {
@@ -768,6 +830,7 @@
         const data = await postJson('/api/login/start', payload);
         pendingLoginUsername = data.username || '';
         if (data.requires_2fa) {
+          show(loginForm, false);
           show(login2faForm, true);
           login2faForm.elements.challengeId.value = data.challenge_id;
           setMessage(loginFeedback, '2FA code sent. Enter it below.', 'success');
@@ -803,6 +866,7 @@
         const payload = attachTurnstileSession(formPayload(login2faForm));
         const data = await postJson('/api/login/verify-2fa', payload);
         show(login2faForm, false);
+        show(loginForm, true);
         if (data.role === 'admin') {
           currentSession = {
             sessionToken: data.session_token,
@@ -1221,9 +1285,12 @@
 
   setupPwaShell();
   mountTurnstile();
+  checkAssetVersion();
+  setInterval(checkAssetVersion, VERSION_POLL_MS);
   document.getElementById('topbar-share-link')?.addEventListener('click', async () => {
-    await navigator.clipboard.writeText(getShareLink()).catch(() => {});
-    showSharePopup('share link copied');
+    const link = getShareLink();
+    const ok = await navigator.clipboard.writeText(link).then(() => true, () => false);
+    showSharePopup(ok ? 'share link copied' : 'could not copy — link: ' + link);
   });
 
   if (view === 'home') {

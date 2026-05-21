@@ -41,7 +41,7 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
     </header>
     <main class="page">${content}</main>
     <footer class="footer">
-      <div>&copy;jahosi.co.uk 2026 | v0.1.0</div>
+      <div>&copy;jahosi.co.uk 2026 | v0.2.0</div>
       <a href="/privacy">Privacy Policy</a>
     </footer>
   </div>
