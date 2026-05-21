@@ -731,3 +731,33 @@ input[type="checkbox"] {
   border-color: rgba(91, 140, 255, 0.48);
   letter-spacing: 0.01em;
 }
+
+.update-banner {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.update-banner button {
+  padding: 0.3rem 0.75rem;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.5);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.update-banner button:hover {
+  background: rgba(255,255,255,0.35);
+}

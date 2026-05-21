@@ -87,8 +87,11 @@ const WEB_MANIFEST = Buffer.from(
   'utf8'
 );
 
-const SERVICE_WORKER = Buffer.from(
-  `const CACHE_NAME = 'pingme-help-shell-v1';
+// The CACHE_NAME uses a placeholder that is replaced at serve time with the
+// actual app version.  When the version changes on deploy, the activate handler
+// automatically deletes every cache from the previous version, forcing clients
+// to re-fetch all assets.
+const SERVICE_WORKER_TEMPLATE = `const CACHE_NAME = 'pingme-help-__APP_VERSION__';
 const SHELL_FILES = ['/', '/privacy', '/assets/styles.css', '/assets/app.js', '/manifest.webmanifest', '/assets/icon.svg', '/assets/icon-maskable.svg'];
 
 self.addEventListener('install', (event) => {
@@ -134,17 +137,14 @@ self.addEventListener('fetch', (event) => {
       return cached || networkFetch;
     })
   );
-});`,
-  'utf8'
-);
+});`;
 
 const ASSETS = {
   '/assets/styles.css': { body: readAsset('styles.css'), type: 'text/css; charset=utf-8' },
   '/assets/app.js': { body: readAsset('app.js'), type: 'application/javascript; charset=utf-8' },
   '/assets/icon.svg': { body: APP_ICON_SVG, type: 'image/svg+xml; charset=utf-8' },
   '/assets/icon-maskable.svg': { body: APP_ICON_MASKABLE_SVG, type: 'image/svg+xml; charset=utf-8' },
-  '/manifest.webmanifest': { body: WEB_MANIFEST, type: 'application/manifest+json; charset=utf-8' },
-  '/sw.js': { body: SERVICE_WORKER, type: 'application/javascript; charset=utf-8' }
+  '/manifest.webmanifest': { body: WEB_MANIFEST, type: 'application/manifest+json; charset=utf-8' }
 };
 
 const CSP = [
@@ -412,6 +412,15 @@ function createServer({ config, store }) {
   const homePageHtml = renderHomePage(config.turnstileSiteKey);
   const privacyPageHtml = renderPrivacyPage(config.turnstileSiteKey);
 
+  // Build the service worker once at server start, injecting the current app
+  // version into the cache name.  The SW's activate handler deletes every cache
+  // whose name doesn't match, so bumping the version automatically purges stale
+  // assets from every client on their next page load.
+  const swBody = Buffer.from(
+    SERVICE_WORKER_TEMPLATE.replace(/'pingme-help-__APP_VERSION__'/g, `'pingme-help-${config.version}'`),
+    'utf8'
+  );
+
   const sessions = new Map();
   const loginChallenges = new Map();
   const resetChallenges = new Map();
@@ -473,6 +482,25 @@ function createServer({ config, store }) {
           version: config.version,
           timestamp: nowIso()
         });
+        return;
+      }
+
+      // Serve sw.js dynamically with the current version baked into the cache
+      // name, and with no-cache headers so the browser always re-fetches it.
+      if (method === 'GET' && url.pathname === '/sw.js') {
+        response.setHeader('Cache-Control', 'no-cache');
+        response.setHeader('Service-Worker-Allowed', '/');
+        response.setHeader('X-Content-Type-Options', 'nosniff');
+        response.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+        response.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+        response.end(swBody);
+        return;
+      }
+
+      // Version endpoint — used by the client to detect deploys and prompt
+      // a cache-busting reload when the stored version is outdated.
+      if (method === 'GET' && url.pathname === '/api/version') {
+        sendJson(response, 200, { ok: true, version: config.version });
         return;
       }
 
@@ -778,6 +806,8 @@ function createServer({ config, store }) {
           dashboard: {
             total_users: role === 'admin' ? store.getTotalUsers() : undefined,
             smtp: role === 'admin' ? store.getSmtpSettings(config) : undefined,
+            twofa_enabled: role === 'admin' ? store.getSetting('admin_twofa_enabled', 'false') === 'true' : undefined,
+            email: role === 'admin' ? store.getSetting('admin_twofa_email', '') : undefined,
             user: role === 'user' ? buildUserDashboard(store, resolvedUsername) : undefined
           }
         });
@@ -812,6 +842,8 @@ function createServer({ config, store }) {
           dashboard: {
             total_users: challenge.role === 'admin' ? store.getTotalUsers() : undefined,
             smtp: challenge.role === 'admin' ? store.getSmtpSettings(config) : undefined,
+            twofa_enabled: challenge.role === 'admin' ? store.getSetting('admin_twofa_enabled', 'false') === 'true' : undefined,
+            email: challenge.role === 'admin' ? store.getSetting('admin_twofa_email', '') : undefined,
             user: challenge.role === 'user' ? buildUserDashboard(store, challenge.username) : undefined
           }
         });
