@@ -383,10 +383,27 @@ function buildUserDashboard(store, username) {
   return {
     private_stats: store.getPrivateStats(username),
     codewords: store.listCodewords(username),
+    follows: store.listFollows(username),
     twofa_enabled: Boolean(user && user.twofa_enabled),
     email: user && user.email ? user.email : '',
     email_verified: Boolean(user && user.email_verified_at),
     email_verified_at: user && user.email_verified_at ? user.email_verified_at : null
+  };
+}
+
+function resolvePingStatus(store, username, codeword, shouldTrackAccess = true) {
+  const user = store.getUser(username);
+  const codewordRow = store.getCodeword(username, codeword);
+  if (!user || !codewordRow || !codewordRow.is_active) {
+    return null;
+  }
+  if (shouldTrackAccess) {
+    store.updateViewerAccess(username, nowIso(), codeword);
+  }
+  return {
+    status: Boolean(user.status),
+    last_status_update: user.last_status_update,
+    has_message: Boolean(user.burn_message)
   };
 }
 
@@ -849,8 +866,12 @@ function createServer({ config, store }) {
       }
 
       if (url.pathname === '/api/check-ping') {
-        if (!(await requireTurnstile())) {
-          return;
+        const requesterToken = String(payload.sessionToken || '');
+        const requesterSession = requesterToken ? sessions.get(requesterToken) : null;
+        if (!requesterSession || requesterSession.type === 'pinger') {
+          if (!(await requireTurnstile())) {
+            return;
+          }
         }
 
         const username = normalizeUsername(payload.username);
@@ -861,17 +882,14 @@ function createServer({ config, store }) {
           return;
         }
 
-        const user = store.getUser(username);
-        const codewordRow = store.getCodeword(username, codeword);
-        if (!user || !codewordRow || !codewordRow.is_active) {
+        const statusPayload = resolvePingStatus(store, username, codeword);
+        if (!statusPayload) {
           lockout.recordFailure('viewer:' + username);
           sendJson(response, 401, { ok: false, error: 'Invalid codeword' });
           return;
         }
 
         lockout.recordSuccess('viewer:' + username);
-        const now = nowIso();
-        store.updateViewerAccess(username, now, codeword);
 
         const pingerToken = randomId();
         sessions.set(pingerToken, {
@@ -883,9 +901,7 @@ function createServer({ config, store }) {
         sendJson(response, 200, {
           ok: true,
           session_token: pingerToken,
-          status: Boolean(user.status),
-          last_status_update: user.last_status_update,
-          has_message: Boolean(user.burn_message)
+          ...statusPayload
         });
         return;
       }
@@ -942,6 +958,76 @@ function createServer({ config, store }) {
         }
         store.setCodewordActive(session.username, id, enabled);
         sendJson(response, 200, { ok: true, codewords: store.listCodewords(session.username) });
+        return;
+      }
+
+      if (url.pathname === '/api/user/follows/list') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const follows = store.listFollows(session.username).map((follow) => {
+          const statusPayload = resolvePingStatus(store, follow.target_username, follow.codeword, false);
+          return {
+            ...follow,
+            status: statusPayload ? statusPayload.status : null,
+            last_status_update: statusPayload ? statusPayload.last_status_update : null
+          };
+        });
+        sendJson(response, 200, { ok: true, follows });
+        return;
+      }
+
+      if (url.pathname === '/api/user/follows/add') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const targetUsername = normalizeUsername(payload.username);
+        const codeword = normalizeSecretCodeword(payload.codeword);
+        if (!targetUsername || !codeword) {
+          sendJson(response, 400, { ok: false, error: 'Invalid input' });
+          return;
+        }
+        if (secureCompareText(session.username, targetUsername)) {
+          sendJson(response, 400, { ok: false, error: 'Cannot follow your own username' });
+          return;
+        }
+        if (store.getFollow(session.username, targetUsername, codeword)) {
+          sendJson(response, 409, { ok: false, error: 'Follow already exists' });
+          return;
+        }
+        const statusPayload = resolvePingStatus(store, targetUsername, codeword, false);
+        if (!statusPayload) {
+          sendJson(response, 401, { ok: false, error: 'Invalid codeword' });
+          return;
+        }
+        store.addFollow(session.username, targetUsername, codeword, nowIso());
+        sendJson(response, 200, { ok: true, follows: store.listFollows(session.username) });
+        return;
+      }
+
+      if (url.pathname === '/api/user/follows/remove') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const id = Number.parseInt(String(payload.id || ''), 10);
+        if (!Number.isInteger(id) || id <= 0) {
+          sendJson(response, 400, { ok: false, error: 'Invalid input' });
+          return;
+        }
+        store.removeFollow(session.username, id);
+        sendJson(response, 200, { ok: true, follows: store.listFollows(session.username) });
+        return;
+      }
+
+      if (url.pathname === '/api/user/follows/check') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const targetUsername = normalizeUsername(payload.username);
+        const codeword = normalizeSecretCodeword(payload.codeword);
+        const statusPayload = resolvePingStatus(store, targetUsername, codeword);
+        if (!statusPayload) {
+          sendJson(response, 401, { ok: false, error: 'Invalid codeword' });
+          return;
+        }
+        sendJson(response, 200, {
+          ok: true,
+          username: targetUsername,
+          ...statusPayload,
+          follows: store.listFollows(session.username)
+        });
         return;
       }
 

@@ -64,6 +64,21 @@ textarea {
   gap: 0.65rem;
 }
 
+.topbar-share-link {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.topbar-username-link {
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .topbar {
   padding: 0.5rem 0 1rem;
 }
@@ -126,7 +141,7 @@ textarea {
 
 @media (min-width: 720px) {
   .tab-row {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -339,6 +354,12 @@ textarea {
   color: var(--ok);
 }
 
+#logged-in-banner {
+  text-align: center;
+  font-size: clamp(1.2rem, 2.6vw, 1.5rem);
+  font-weight: 800;
+}
+
 .hidden {
   display: none !important;
 }
@@ -394,6 +415,7 @@ textarea {
   background: linear-gradient(135deg, rgba(91, 140, 255, 0.22), rgba(18, 28, 45, 0.72));
   color: var(--text);
   backdrop-filter: blur(10px);
+  margin-bottom: 1rem;
 }
 
 button:hover:not(:disabled),
@@ -471,6 +493,62 @@ textarea:focus {
   padding-left: 1.25rem;
   display: grid;
   gap: 0.6rem;
+}
+
+#user-codeword-list li {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.codeword-actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pinger-register-note {
+  margin-top: 0.75rem;
+  color: var(--muted);
+}
+
+#follows-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.follows-row {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.follows-row .status-pill {
+  width: fit-content;
+}
+
+.toast-popup {
+  position: fixed;
+  right: 1rem;
+  top: 1rem;
+  z-index: 50;
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.8rem;
+  box-shadow: var(--shadow);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.toast-popup button {
+  min-height: unset;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
 }
 
 @media (min-width: 768px) {

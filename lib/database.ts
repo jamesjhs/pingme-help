@@ -53,6 +53,16 @@ class DatabaseStore {
         setting_key TEXT PRIMARY KEY,
         setting_value TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS follows (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        follower_username TEXT NOT NULL,
+        target_username TEXT NOT NULL,
+        codeword TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(follower_username, target_username, codeword),
+        FOREIGN KEY (follower_username) REFERENCES users(username) ON DELETE CASCADE
+      );
     `);
 
     this.ensureUserColumn('email', 'TEXT');
@@ -152,6 +162,25 @@ class DatabaseStore {
         UPDATE codewords
         SET last_checked_at = ?
         WHERE username = ? AND codeword = ?
+      `),
+      listFollows: this.db.prepare(`
+        SELECT id, target_username, codeword, created_at
+        FROM follows
+        WHERE follower_username = ?
+        ORDER BY id DESC
+      `),
+      getFollow: this.db.prepare(`
+        SELECT id, target_username, codeword, created_at
+        FROM follows
+        WHERE follower_username = ? AND target_username = ? AND codeword = ?
+      `),
+      createFollow: this.db.prepare(`
+        INSERT INTO follows (follower_username, target_username, codeword, created_at)
+        VALUES (?, ?, ?, ?)
+      `),
+      deleteFollow: this.db.prepare(`
+        DELETE FROM follows
+        WHERE follower_username = ? AND id = ?
       `),
       getAdminPasswordHash: this.db.prepare(`
         SELECT setting_value
@@ -283,6 +312,22 @@ class DatabaseStore {
 
   setCodewordActive(username, id, active) {
     return this.statements.setCodewordActive.run(active ? 1 : 0, username, id).changes;
+  }
+
+  listFollows(username) {
+    return this.statements.listFollows.all(username);
+  }
+
+  addFollow(username, targetUsername, codeword, createdAt) {
+    this.statements.createFollow.run(username, targetUsername, codeword, createdAt);
+  }
+
+  getFollow(username, targetUsername, codeword) {
+    return this.statements.getFollow.get(username, targetUsername, codeword) || null;
+  }
+
+  removeFollow(username, id) {
+    return this.statements.deleteFollow.run(username, id).changes;
   }
 
   getSmtpSettings(defaults) {

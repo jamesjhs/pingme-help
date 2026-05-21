@@ -209,6 +209,71 @@ test('send ping updates status and check ping can reveal burn message once', asy
   await close();
 });
 
+test('user can follow and unfollow a username/codeword pair and check status', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const { base, store, close } = await startServer(makeConfig(tempDir));
+
+  store.registerUser({
+    username: 'owner',
+    passwordHash: hashPassword('password123'),
+    email: 'owner@example.com',
+    createdAt: '2026-05-19T00:00:00.000Z'
+  });
+  store.createCodeword('owner', 'kind-orbit', '2026-05-19T00:00:00.000Z');
+  store.saveUserStatus({
+    username: 'owner',
+    status: 1,
+    burnMessage: 'All good',
+    lastStatusUpdate: '2026-05-19T01:00:00.000Z'
+  });
+
+  store.registerUser({
+    username: 'follower',
+    passwordHash: hashPassword('password123'),
+    email: 'follower@example.com',
+    createdAt: '2026-05-19T00:00:00.000Z'
+  });
+  store.createCodeword('follower', 'steady-river', '2026-05-19T00:00:00.000Z');
+
+  const login = await postJson(base, '/api/login/start', {
+    email: 'follower@example.com',
+    password: 'password123'
+  });
+  assert.equal(login.status, 200);
+
+  const add = await postJson(base, '/api/user/follows/add', {
+    sessionToken: login.data.session_token,
+    username: 'owner',
+    codeword: 'KIND-ORBIT'
+  });
+  assert.equal(add.status, 200);
+  assert.equal(add.data.follows.length, 1);
+
+  const check = await postJson(base, '/api/user/follows/check', {
+    sessionToken: login.data.session_token,
+    username: 'owner',
+    codeword: 'kind-orbit'
+  });
+  assert.equal(check.status, 200);
+  assert.equal(check.data.status, true);
+
+  const list = await postJson(base, '/api/user/follows/list', {
+    sessionToken: login.data.session_token
+  });
+  assert.equal(list.status, 200);
+  assert.equal(list.data.follows.length, 1);
+  assert.equal(list.data.follows[0].target_username, 'owner');
+
+  const remove = await postJson(base, '/api/user/follows/remove', {
+    sessionToken: login.data.session_token,
+    id: list.data.follows[0].id
+  });
+  assert.equal(remove.status, 200);
+  assert.equal(remove.data.follows.length, 0);
+
+  await close();
+});
+
 test('admin login returns dashboard with total users and smtp settings', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
   const { base, store, close } = await startServer(makeConfig(tempDir));

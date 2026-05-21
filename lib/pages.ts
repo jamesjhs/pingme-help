@@ -35,7 +35,8 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
       <a class="brand" href="/">pingme.help</a>
       <div class="topbar-actions">
         <button id="install-app-button" class="icon-button install-app-button hidden" type="button" aria-label="Install app">⤓</button>
-        <a class="privacy-link" href="/privacy">Privacy Policy</a>
+        <button id="topbar-share-link" class="topbar-share-link" type="button">Share PingMe</button>
+        <a id="topbar-username-link" class="topbar-username-link hidden" href="/"></a>
       </div>
     </header>
     <main class="page">${content}</main>
@@ -54,21 +55,8 @@ function renderHomePage(siteKey) {
     view: 'home',
     turnstileSiteKey: siteKey,
     content: `
-      <section id="quick-status-card" class="card hidden" aria-live="polite">
-        <p class="eyebrow">Quick check-in</p>
-        <form id="quick-status-form" class="stack-form" novalidate>
-          <label>
-            <span>Burn Message <small>(optional)</small></span>
-            <textarea name="message" id="quick-burn-message-input" maxlength="100" rows="3" autocomplete="off" ${CA}></textarea>
-            <span class="char-count" id="quick-burn-char-count" aria-live="polite">100 characters remaining</span>
-          </label>
-          <input type="hidden" name="status" value="ok">
-          <div class="status-actions">
-            <button class="status-button ok" type="button" data-quick-status-value="ok">I&#39;m OK</button>
-            <button class="status-button not-ok" type="button" data-quick-status-value="not_ok">I&#39;m Not OK</button>
-          </div>
-        </form>
-        <div id="quick-status-feedback" class="feedback" aria-live="polite"></div>
+      <section id="logged-in-banner" class="card hidden" aria-live="polite">
+        Logged in as <span data-user="usernameBanner"></span>
       </section>
 
       <section id="home-tabs" class="tabs card" aria-label="Homepage actions">
@@ -77,10 +65,12 @@ function renderHomePage(siteKey) {
           <button class="tab-button" type="button" id="tab-btn-register" data-tab-target="register-panel" role="tab" aria-selected="false" aria-controls="register-panel">Register</button>
           <button class="tab-button" type="button" id="tab-btn-login" data-tab-target="login-panel" role="tab" aria-selected="false" aria-controls="login-panel">Login</button>
           <button class="tab-button" type="button" id="tab-btn-check" data-tab-target="check-panel" role="tab" aria-selected="false" aria-controls="check-panel">Check a Ping</button>
+          <button class="tab-button hidden" type="button" id="tab-btn-follows" data-tab-target="follows-panel" role="tab" aria-selected="false" aria-controls="follows-panel">Follows</button>
+          <button class="tab-button hidden" type="button" id="tab-btn-account" data-tab-target="account-panel" role="tab" aria-selected="false" aria-controls="account-panel">Account</button>
         </div>
 
         <section id="send-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-send" hidden>
-          <form id="send-ping-form" class="stack-form" novalidate>
+          <form id="send-ping-form" class="stack-form public-send-form" novalidate>
             <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
             <label><span>Password</span><input name="password" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
             <label>
@@ -94,6 +84,19 @@ function renderHomePage(siteKey) {
               <button class="status-button not-ok" type="button" data-status-value="not_ok" data-public-action>I&#39;m Not OK</button>
             </div>
           </form>
+          <form id="quick-status-form" class="stack-form hidden" novalidate>
+            <label>
+              <span>Burn Message <small>(optional)</small></span>
+              <textarea name="message" id="quick-burn-message-input" maxlength="100" rows="3" autocomplete="off" ${CA}></textarea>
+              <span class="char-count" id="quick-burn-char-count" aria-live="polite">100 characters remaining</span>
+            </label>
+            <input type="hidden" name="status" value="ok">
+            <div class="status-actions">
+              <button class="status-button ok" type="button" data-quick-status-value="ok">I&#39;m OK</button>
+              <button class="status-button not-ok" type="button" data-quick-status-value="not_ok">I&#39;m Not OK</button>
+            </div>
+          </form>
+          <div id="quick-status-feedback" class="feedback hidden" aria-live="polite"></div>
           <div id="send-ping-feedback" class="feedback" aria-live="polite"></div>
         </section>
 
@@ -145,7 +148,7 @@ function renderHomePage(siteKey) {
           <form id="check-ping-form" class="stack-form" novalidate>
             <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
             <label><span>Shared Codeword</span><input name="codeword" type="password" maxlength="64" required autocomplete="off" ${CA}></label>
-            <button class="primary-button" type="submit" data-public-action>Check Status</button>
+            <button class="primary-button" type="submit">Check Status</button>
           </form>
           <div id="check-ping-feedback" class="feedback" aria-live="polite"></div>
           <section id="pinger-dashboard" class="card inset-card hidden" aria-live="polite">
@@ -153,12 +156,85 @@ function renderHomePage(siteKey) {
             <p><strong>User:</strong> <span data-pinger="username"></span></p>
             <div class="status-pill" data-pinger="status"></div>
             <p><strong>Last Updated:</strong> <span data-pinger="lastUpdated"></span></p>
-            <button id="pinger-reveal-message" class="blur-card hidden" type="button">View burn message (single view)</button>
+            <button id="pinger-reveal-message" class="blur-card hidden" type="button">View burn message (view once)</button>
             <div id="pinger-message" class="card inset-card hidden"></div>
-            <div class="status-actions">
-              <button id="pinger-share-site" class="primary-button" type="button">Share PingMe</button>
-              <button id="pinger-logout" class="destructive-button" type="button">Logout</button>
+            <div class="pinger-register-note">
+              Want subscription alerts? <a href="/?tab=register">Create an account</a> and follow this username with a shared codeword.
             </div>
+          </section>
+        </section>
+
+        <section id="follows-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-follows" hidden>
+          <form id="follows-check-form" class="stack-form" novalidate>
+            <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
+            <label><span>Shared Codeword</span><input name="codeword" type="password" maxlength="64" required autocomplete="off" ${CA}></label>
+            <div class="status-actions">
+              <button class="primary-button" type="submit">Check Status</button>
+              <button id="follows-toggle-button" class="primary-button" type="button">Follow</button>
+            </div>
+          </form>
+          <div id="follows-feedback" class="feedback" aria-live="polite"></div>
+          <section id="follows-status-card" class="card inset-card hidden" aria-live="polite">
+            <p><strong>User:</strong> <span data-follows="username"></span></p>
+            <div class="status-pill" data-follows="status"></div>
+            <p><strong>Last Updated:</strong> <span data-follows="lastUpdated"></span></p>
+          </section>
+          <section class="card inset-card">
+            <h3>Following</h3>
+            <ul id="follows-list"></ul>
+          </section>
+        </section>
+
+        <section id="account-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-account" hidden>
+          <section id="user-dashboard" class="card inset-card" aria-live="polite">
+            <p class="eyebrow">Account</p>
+            <h2>Manage your check-ins and followers</h2>
+            <p>
+              <strong>Email:</strong>
+              <span data-user="email">—</span>
+              <span data-user="emailVerificationStatus" class="verification-status">unverified</span>
+            </p>
+            <p><strong>Last checked by:</strong> <span data-user="lastViewerAccess">Never</span></p>
+            <p><strong>Message viewed:</strong> <span data-user="messageViewed">Not viewed</span></p>
+
+            <form id="user-codeword-create-form" class="stack-form" novalidate>
+              <label><span>New Shared Codeword</span><input name="codeword" type="text" maxlength="64" required readonly autocomplete="off" ${CA}></label>
+              <small><a href="#" id="regenerate-codeword-link">Regenerate codeword</a></small>
+              <button class="primary-button" type="submit">Create Codeword</button>
+            </form>
+
+            <div class="card inset-card">
+              <h3>Codewords</h3>
+              <ul id="user-codeword-list"></ul>
+            </div>
+
+            <form id="user-invite-form" class="stack-form" novalidate>
+              <label><span>Invite by Email</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
+              <button class="primary-button" type="submit">Send Invite</button>
+            </form>
+
+            <button id="user-resend-verification" class="primary-button" type="button">Resend Verification Email</button>
+
+            <form id="user-twofa-form" class="stack-form" novalidate>
+              <label><span>2FA Email</span><input name="email" type="email" maxlength="254" autocomplete="email" ${CA}></label>
+              <label class="confirm-label"><input type="checkbox" name="enabled"><span>Enable email 2FA for login</span></label>
+              <button class="primary-button" type="submit">Save 2FA Settings</button>
+            </form>
+
+            <form id="user-password-form" class="stack-form" novalidate>
+              <label><span>Current Password</span><input name="currentPassword" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
+              <label><span>New Password</span><input name="newPassword" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
+              <label><span>Confirm New Password</span><input name="newPasswordConfirm" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
+              <button class="primary-button" type="submit">Change Password</button>
+            </form>
+
+            <form id="user-delete-form" class="stack-form" novalidate>
+              <label class="confirm-label"><input type="checkbox" id="user-delete-confirm"><span>Delete my account permanently</span></label>
+              <button class="destructive-button" id="user-delete-button" type="submit" disabled>Delete Account</button>
+            </form>
+
+            <button id="user-logout" class="destructive-button" type="button">Logout</button>
+            <div id="user-dashboard-feedback" class="feedback" aria-live="polite"></div>
           </section>
         </section>
 
@@ -202,62 +278,6 @@ function renderHomePage(siteKey) {
           </li>
         </ul>
         <button class="primary-button pitch-cta" type="button" data-open-tab="register-panel">Get started — it&#39;s free &rarr;</button>
-      </section>
-
-      <section id="user-dashboard" class="card hidden" aria-live="polite">
-        <p class="eyebrow">User Dashboard</p>
-        <h2>Manage your check-ins and followers</h2>
-        <p><strong>Logged in as:</strong> <span data-user="username"></span></p>
-        <p>
-          <strong>Email:</strong>
-          <span data-user="email">—</span>
-          <span data-user="emailVerificationStatus" class="verification-status">unverified</span>
-        </p>
-        <p><strong>Last checked by:</strong> <span data-user="lastViewerAccess">Never</span></p>
-        <p><strong>Message viewed:</strong> <span data-user="messageViewed">Not viewed</span></p>
-
-        <form id="user-twofa-form" class="stack-form" novalidate>
-          <label><span>2FA Email</span><input name="email" type="email" maxlength="254" autocomplete="email" ${CA}></label>
-          <label class="confirm-label"><input type="checkbox" name="enabled"><span>Enable email 2FA for login</span></label>
-          <button class="primary-button" type="submit">Save 2FA Settings</button>
-        </form>
-
-        <button id="user-resend-verification" class="primary-button" type="button">Resend Verification Email</button>
-
-        <form id="user-password-form" class="stack-form" novalidate>
-          <label><span>Current Password</span><input name="currentPassword" type="password" maxlength="128" required autocomplete="current-password" ${CA}></label>
-          <label><span>New Password</span><input name="newPassword" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
-          <label><span>Confirm New Password</span><input name="newPasswordConfirm" type="password" maxlength="128" required autocomplete="new-password" ${CA}></label>
-          <button class="primary-button" type="submit">Change Password</button>
-        </form>
-
-        <form id="user-codeword-create-form" class="stack-form" novalidate>
-          <label><span>New Shared Codeword</span><input name="codeword" type="text" maxlength="64" required readonly autocomplete="off" ${CA}></label>
-          <small><a href="#" id="regenerate-codeword-link">Regenerate codeword</a></small>
-          <button class="primary-button" type="submit">Create Codeword</button>
-        </form>
-
-        <div class="card inset-card">
-          <h3>Codewords</h3>
-          <ul id="user-codeword-list"></ul>
-        </div>
-
-        <form id="user-invite-form" class="stack-form" novalidate>
-          <label><span>Invite by Email</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
-          <button class="primary-button" type="submit">Send Invite</button>
-        </form>
-
-        <div class="status-actions">
-          <button id="user-share-link" class="primary-button" type="button">Generate Share Link</button>
-          <button id="user-logout" class="destructive-button" type="button">Logout</button>
-        </div>
-        <div id="user-share-result" class="feedback"></div>
-
-        <form id="user-delete-form" class="stack-form" novalidate>
-          <label class="confirm-label"><input type="checkbox" id="user-delete-confirm"><span>Delete my account permanently</span></label>
-          <button class="destructive-button" id="user-delete-button" type="submit" disabled>Delete Account</button>
-        </form>
-        <div id="user-dashboard-feedback" class="feedback" aria-live="polite"></div>
       </section>
 
       <section id="admin-dashboard" class="card hidden" aria-live="polite">
