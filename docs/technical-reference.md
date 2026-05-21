@@ -9,7 +9,7 @@
 | Layer | Files | Responsibility |
 |---|---|---|
 | Bootstrap | `server.ts` | Starts the HTTP server and handles fatal process errors |
-| Configuration | `lib/config.ts` | Loads environment variables and exports `v0.1.0` |
+| Configuration | `lib/config.ts` | Loads environment variables and exports `v0.3.0` |
 | Security helpers | `lib/security.ts` | Input normalisation, password hashing, comparisons, lockout logic, and HTML escaping |
 | Persistence | `lib/database.ts` | SQLCipher-backed SQLite storage and prepared statements |
 | HTTP app | `lib/app.ts` | Routes, sessions, Turnstile verification, SMTP mail flows, and JSON APIs |

@@ -1,6 +1,6 @@
 {
   "name": "pingme-help",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Zero-bloat privacy-first status service for pingme.help",
   "main": "dist/server.js",
   "scripts": {

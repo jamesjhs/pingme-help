@@ -77,16 +77,6 @@ textarea {
   gap: 0.65rem;
 }
 
-.topbar-share-link {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-}
-
 .topbar-username-link {
   font-weight: 700;
   text-decoration: none;
@@ -95,7 +85,7 @@ textarea {
 .topbar-tagline {
   margin: 0;
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 1.15rem;
   font-weight: 600;
 }
 

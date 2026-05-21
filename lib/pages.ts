@@ -35,7 +35,6 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
       <div class="topbar-main">
         <a class="brand" href="/">pingme.help</a>
         <div class="topbar-actions">
-          <button id="topbar-share-link" class="topbar-share-link" type="button">Share PingMe</button>
           <a id="topbar-username-link" class="topbar-username-link hidden" href="/"></a>
         </div>
       </div>
@@ -43,8 +42,9 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
     </header>
     <main class="page">${content}</main>
     <footer class="footer">
-      <div>&copy;jahosi.co.uk 2026 | v0.2.0</div>
+      <div>&copy;jahosi.co.uk 2026 | v0.3.0</div>
       <div class="footer-links">
+        <button id="footer-share-link" class="text-link-button" type="button">Share PingMe</button>
         <button id="install-app-link" class="text-link-button hidden" type="button">install app</button>
         <a href="/privacy">Privacy Policy</a>
       </div>
@@ -65,7 +65,6 @@ function renderHomePage(siteKey) {
           <button class="tab-button" type="button" id="tab-btn-send" data-tab-target="send-panel" role="tab" aria-selected="false" aria-controls="send-panel">Send a Ping</button>
           <button class="tab-button" type="button" id="tab-btn-login" data-tab-target="login-panel" role="tab" aria-selected="false" aria-controls="login-panel">Register/Login</button>
           <button class="tab-button" type="button" id="tab-btn-check" data-tab-target="check-panel" role="tab" aria-selected="false" aria-controls="check-panel">Check a Ping</button>
-          <button class="tab-button hidden" type="button" id="tab-btn-follows" data-tab-target="follows-panel" role="tab" aria-selected="false" aria-controls="follows-panel">Follows</button>
           <button class="tab-button hidden" type="button" id="tab-btn-account" data-tab-target="account-panel" role="tab" aria-selected="false" aria-controls="account-panel">Account</button>
         </div>
 
@@ -102,6 +101,23 @@ function renderHomePage(siteKey) {
           </form>
           <div id="quick-status-feedback" class="feedback hidden" aria-live="polite"></div>
           <div id="send-ping-feedback" class="feedback" aria-live="polite"></div>
+          <div id="send-panel-codewords" class="hidden">
+            <form id="user-codeword-create-form" class="stack-form" novalidate>
+              <label><span>New Shared Codeword</span><input name="codeword" type="text" maxlength="64" required readonly autocomplete="off" ${CA}></label>
+              <small><a href="#" id="regenerate-codeword-link">Regenerate codeword</a></small>
+              <button class="primary-button" type="submit">Create Codeword</button>
+            </form>
+
+            <div class="card inset-card">
+              <h3>Codewords</h3>
+              <ul id="user-codeword-list"></ul>
+            </div>
+
+            <form id="user-invite-form" class="stack-form" novalidate>
+              <label><span>Invite by Email</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
+              <button class="primary-button" type="submit">Send Invite</button>
+            </form>
+          </div>
         </section>
 
         <section id="login-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-login" hidden>
@@ -165,51 +181,34 @@ function renderHomePage(siteKey) {
               Want subscription alerts? <a href="/?tab=login">Create an account</a> and follow this username with a shared codeword.
             </div>
           </section>
-        </section>
-
-        <section id="follows-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-follows" hidden>
-          <form id="follows-check-form" class="stack-form" novalidate>
-            <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
-            <label><span>Shared Codeword</span><input name="codeword" type="password" maxlength="64" required autocomplete="off" ${CA}></label>
-            <div class="status-actions">
-              <button class="primary-button" type="submit">Check Status</button>
-              <button id="follows-toggle-button" class="primary-button" type="button">Follow</button>
-            </div>
-          </form>
-          <div id="follows-feedback" class="feedback" aria-live="polite"></div>
-          <section id="follows-status-card" class="card inset-card hidden" aria-live="polite">
-            <p><strong>User:</strong> <span data-follows="username"></span></p>
-            <div class="status-pill" data-follows="status"></div>
-            <p><strong>Last Updated:</strong> <span data-follows="lastUpdated"></span></p>
-          </section>
-          <section class="card inset-card">
-            <h3>Following</h3>
-            <ul id="follows-list"></ul>
-          </section>
+          <div id="check-panel-follows" class="hidden">
+            <form id="follows-check-form" class="stack-form" novalidate>
+              <label><span>Username</span><input name="username" type="text" maxlength="32" required autocomplete="off" ${CA}></label>
+              <label><span>Shared Codeword</span><input name="codeword" type="password" maxlength="64" required autocomplete="off" ${CA}></label>
+              <div class="status-actions">
+                <button class="primary-button" type="submit">Check Status</button>
+                <button id="follows-toggle-button" class="primary-button" type="button">Follow</button>
+              </div>
+            </form>
+            <div id="follows-feedback" class="feedback" aria-live="polite"></div>
+            <section id="follows-status-card" class="card inset-card hidden" aria-live="polite">
+              <p><strong>User:</strong> <span data-follows="username"></span></p>
+              <div class="status-pill" data-follows="status"></div>
+              <p><strong>Last Updated:</strong> <span data-follows="lastUpdated"></span></p>
+            </section>
+            <section class="card inset-card">
+              <h3>Following</h3>
+              <ul id="follows-list"></ul>
+            </section>
+          </div>
         </section>
 
         <section id="account-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-account" hidden>
           <section id="user-dashboard" class="card inset-card" aria-live="polite">
             <p class="eyebrow">Account</p>
-            <h2>Security settings</h2>
+            <h2>Followers</h2>
             <p><strong>Last checked by:</strong> <span data-user="lastViewerAccess">Never</span></p>
             <p><strong>Message viewed:</strong> <span data-user="messageViewed">Not viewed</span></p>
-
-            <form id="user-codeword-create-form" class="stack-form" novalidate>
-              <label><span>New Shared Codeword</span><input name="codeword" type="text" maxlength="64" required readonly autocomplete="off" ${CA}></label>
-              <small><a href="#" id="regenerate-codeword-link">Regenerate codeword</a></small>
-              <button class="primary-button" type="submit">Create Codeword</button>
-            </form>
-
-            <div class="card inset-card">
-              <h3>Codewords</h3>
-              <ul id="user-codeword-list"></ul>
-            </div>
-
-            <form id="user-invite-form" class="stack-form" novalidate>
-              <label><span>Invite by Email</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
-              <button class="primary-button" type="submit">Send Invite</button>
-            </form>
 
             <form id="user-twofa-form" class="stack-form" novalidate>
               <label class="field-with-action">

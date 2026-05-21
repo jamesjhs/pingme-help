@@ -204,7 +204,8 @@
     const tabCheck = document.getElementById('tab-btn-check');
     const tabLogin = document.getElementById('tab-btn-login');
     const tabAccount = document.getElementById('tab-btn-account');
-    const tabFollows = document.getElementById('tab-btn-follows');
+    const sendPanelCodewords = document.getElementById('send-panel-codewords');
+    const checkPanelFollows = document.getElementById('check-panel-follows');
 
     show(homeTabs, !isAdmin);
     show(publicSendForm, !isUser);
@@ -215,7 +216,8 @@
     show(tabCheck, !isAdmin);
     show(tabLogin, !isLoggedIn);
     show(tabAccount, isUser);
-    show(tabFollows, isUser);
+    show(sendPanelCodewords, isUser);
+    show(checkPanelFollows, isUser);
     show(siteVerification, !isLoggedIn);
     show(topbarTagline, !isLoggedIn);
     if (pitchCard) {
@@ -268,8 +270,8 @@
     const isUser = Boolean(currentSession && currentSession.role === 'user');
     show(topbarUsernameLink, isUser);
     if (isUser) {
-      topbarUsernameLink.textContent = currentSession.username;
-      topbarUsernameLink.href = `/?tab=check&user=${encodeURIComponent(currentSession.username)}`;
+      topbarUsernameLink.textContent = 'Hello ' + currentSession.username;
+      topbarUsernameLink.href = '/?tab=account';
     }
   }
 
@@ -1329,7 +1331,7 @@
   mountTurnstile();
   checkAssetVersion();
   setInterval(checkAssetVersion, VERSION_POLL_MS);
-  document.getElementById('topbar-share-link')?.addEventListener('click', async () => {
+  document.getElementById('footer-share-link')?.addEventListener('click', async () => {
     const link = getShareLink();
     const ok = await navigator.clipboard.writeText(link).then(() => true, () => false);
     showSharePopup(ok ? 'share link copied' : 'could not copy — link: ' + link);
