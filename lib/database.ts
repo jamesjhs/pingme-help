@@ -158,6 +158,10 @@ class DatabaseStore {
         SET is_active = ?
         WHERE username = ? AND id = ?
       `),
+      deleteCodeword: this.db.prepare(`
+        DELETE FROM codewords
+        WHERE username = ? AND id = ?
+      `),
       setCodewordChecked: this.db.prepare(`
         UPDATE codewords
         SET last_checked_at = ?
@@ -312,6 +316,10 @@ class DatabaseStore {
 
   setCodewordActive(username, id, active) {
     return this.statements.setCodewordActive.run(active ? 1 : 0, username, id).changes;
+  }
+
+  deleteCodeword(username, id) {
+    return this.statements.deleteCodeword.run(username, id).changes;
   }
 
   listFollows(username) {

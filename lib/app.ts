@@ -995,6 +995,18 @@ function createServer({ config, store }) {
         return;
       }
 
+      if (url.pathname === '/api/user/codewords/delete') {
+        const { session } = ensureAuthedSession(payload, sessions, 'user');
+        const id = Number.parseInt(String(payload.id || ''), 10);
+        if (!Number.isInteger(id) || id <= 0) {
+          sendJson(response, 400, { ok: false, error: 'Invalid input' });
+          return;
+        }
+        store.deleteCodeword(session.username, id);
+        sendJson(response, 200, { ok: true, codewords: store.listCodewords(session.username) });
+        return;
+      }
+
       if (url.pathname === '/api/user/follows/list') {
         const { session } = ensureAuthedSession(payload, sessions, 'user');
         const follows = store.listFollows(session.username).map((follow) => {
