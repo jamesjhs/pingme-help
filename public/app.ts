@@ -130,15 +130,86 @@
 
   function updateHomeLayout() {
     const homeTabs = document.getElementById('home-tabs');
-    const quickStatusCard = document.getElementById('quick-status-card');
+    const loggedInBanner = document.getElementById('logged-in-banner');
+    const quickStatusForm = document.getElementById('quick-status-form');
+    const quickStatusFeedback = document.getElementById('quick-status-feedback');
+    const publicSendForm = document.getElementById('send-ping-form');
+    const siteVerification = document.getElementById('site-verification');
     const pitchCard = document.querySelector('.pitch-card');
     const isLoggedIn = Boolean(currentSession);
     const isUser = isLoggedIn && currentSession.role === 'user';
+    const isAdmin = isLoggedIn && currentSession.role === 'admin';
+    const tabSend = document.getElementById('tab-btn-send');
+    const tabCheck = document.getElementById('tab-btn-check');
+    const tabRegister = document.getElementById('tab-btn-register');
+    const tabLogin = document.getElementById('tab-btn-login');
+    const tabAccount = document.getElementById('tab-btn-account');
+    const tabFollows = document.getElementById('tab-btn-follows');
 
-    show(homeTabs, !isLoggedIn);
-    show(quickStatusCard, isUser);
+    show(homeTabs, !isAdmin);
+    show(loggedInBanner, isUser);
+    show(publicSendForm, !isUser);
+    show(quickStatusForm, isUser);
+    show(quickStatusFeedback, isUser);
+    show(tabSend, !isAdmin);
+    show(tabCheck, !isAdmin);
+    show(tabRegister, !isLoggedIn);
+    show(tabLogin, !isLoggedIn);
+    show(tabAccount, isUser);
+    show(tabFollows, isUser);
+    show(siteVerification, !isLoggedIn);
     if (pitchCard) {
       pitchCard.hidden = isLoggedIn;
+    }
+    updateTopbarUserLink();
+  }
+
+  function formatFriendlyTime(value, fallback = 'Never') {
+    if (!value) {
+      return fallback;
+    }
+    let candidate = value;
+    if (typeof value === 'string' && /^[0-9]+$/.test(value)) {
+      const numeric = Number(value);
+      candidate = value.length <= 10 ? numeric * 1000 : numeric;
+    }
+    const date = new Date(candidate);
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+    return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  function getShareLink() {
+    if (currentSession && currentSession.role === 'user') {
+      return `${window.location.origin}/?tab=check&user=${encodeURIComponent(currentSession.username)}`;
+    }
+    return window.location.origin;
+  }
+
+  function showSharePopup(message) {
+    const existing = document.getElementById('share-toast-popup');
+    if (existing) {
+      existing.remove();
+    }
+    const popup = document.createElement('div');
+    popup.id = 'share-toast-popup';
+    popup.className = 'toast-popup';
+    popup.innerHTML = `<span>${message}</span><button type="button" aria-label="Close share popup">Close</button>`;
+    popup.querySelector('button')?.addEventListener('click', () => popup.remove());
+    document.body.appendChild(popup);
+  }
+
+  function updateTopbarUserLink() {
+    const topbarUsernameLink = document.getElementById('topbar-username-link');
+    if (!topbarUsernameLink) {
+      return;
+    }
+    const isUser = Boolean(currentSession && currentSession.role === 'user');
+    show(topbarUsernameLink, isUser);
+    if (isUser) {
+      topbarUsernameLink.textContent = currentSession.username;
+      topbarUsernameLink.href = `/?tab=check&user=${encodeURIComponent(currentSession.username)}`;
     }
   }
 
@@ -248,12 +319,12 @@
     list.innerHTML = '';
     items.forEach((item) => {
       const row = document.createElement('li');
-      row.innerHTML = `<strong>${item.codeword}</strong> — ${item.is_active ? 'active' : 'disabled'} | checked: ${item.last_checked_at || 'never'} | burn viewed: ${item.last_burn_viewed_at || 'never'}`;
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = item.is_active ? 'destructive-button' : 'primary-button';
-      button.textContent = item.is_active ? 'Disable' : 'Enable';
-      button.addEventListener('click', async () => {
+      row.innerHTML = `<strong>${item.codeword}</strong> — ${item.is_active ? 'active' : 'disabled'} | checked: ${formatFriendlyTime(item.last_checked_at)} | burn viewed: ${formatFriendlyTime(item.last_burn_viewed_at)}`;
+      const toggleButton = document.createElement('button');
+      toggleButton.type = 'button';
+      toggleButton.className = item.is_active ? 'destructive-button' : 'primary-button';
+      toggleButton.textContent = item.is_active ? 'Disable' : 'Enable';
+      toggleButton.addEventListener('click', async () => {
         if (!currentSession) {
           return;
         }
@@ -268,22 +339,151 @@
           // no-op
         }
       });
-      row.appendChild(document.createTextNode(' '));
-      row.appendChild(button);
+      const reshareButton = document.createElement('button');
+      reshareButton.type = 'button';
+      reshareButton.className = 'primary-button';
+      reshareButton.textContent = 'Reshare';
+      reshareButton.addEventListener('click', async () => {
+        const link = `${window.location.origin}/?tab=check&user=${encodeURIComponent(currentSession?.username || '')}`;
+        const payload = `PingMe check\nUsername: ${currentSession?.username || ''}\nCodeword: ${item.codeword}\nLink: ${link}`;
+        await navigator.clipboard.writeText(payload).catch(() => {});
+        showSharePopup('share link copied');
+      });
+      const actions = document.createElement('div');
+      actions.className = 'codeword-actions';
+      actions.appendChild(toggleButton);
+      actions.appendChild(reshareButton);
+      row.appendChild(actions);
       list.appendChild(row);
     });
+  }
+
+  function setFollowButtonState(username, codeword) {
+    const toggleButton = document.getElementById('follows-toggle-button');
+    const list = document.getElementById('follows-list');
+    if (!toggleButton || !list) {
+      return;
+    }
+    const targetUser = String(username || '').trim().toLowerCase();
+    const targetCodeword = String(codeword || '').trim().toLowerCase();
+    const isFollowing = Array.from(list.querySelectorAll('li')).some((row) => {
+      return row.dataset.username === targetUser && row.dataset.codeword === targetCodeword;
+    });
+    toggleButton.textContent = isFollowing ? 'Unfollow' : 'Follow';
+  }
+
+  function setFollowsStatusCard({ username, status, lastUpdated }) {
+    const card = document.getElementById('follows-status-card');
+    if (!card) {
+      return;
+    }
+    card.querySelector('[data-follows="username"]').textContent = username || '';
+    const pill = card.querySelector('[data-follows="status"]');
+    if (status === null || status === undefined) {
+      pill.textContent = 'Unknown';
+      delete pill.dataset.state;
+    } else {
+      pill.textContent = status ? '🟢 OK' : '🔴 Not OK';
+      pill.dataset.state = status ? 'ok' : 'not-ok';
+    }
+    card.querySelector('[data-follows="lastUpdated"]').textContent = formatFriendlyTime(lastUpdated);
+    show(card, true);
+  }
+
+  function setFollowsList(items) {
+    const list = document.getElementById('follows-list');
+    if (!list) {
+      return;
+    }
+    list.innerHTML = '';
+    items.forEach((item) => {
+      const row = document.createElement('li');
+      row.className = 'follows-row';
+      row.dataset.followId = String(item.id || '');
+      row.dataset.username = String(item.target_username || '').toLowerCase();
+      row.dataset.codeword = String(item.codeword || '').toLowerCase();
+      row.innerHTML = `<div><strong>${item.target_username}</strong> — ${item.codeword}</div>`;
+
+      if (item.status !== null && item.status !== undefined) {
+        const pill = document.createElement('div');
+        pill.className = 'status-pill';
+        pill.dataset.state = item.status ? 'ok' : 'not-ok';
+        pill.textContent = item.status ? '🟢 OK' : '🔴 Not OK';
+        row.appendChild(pill);
+      }
+
+      const time = document.createElement('div');
+      time.textContent = `Last updated: ${formatFriendlyTime(item.last_status_update)}`;
+      row.appendChild(time);
+
+      const actions = document.createElement('div');
+      actions.className = 'codeword-actions';
+
+      const refreshButton = document.createElement('button');
+      refreshButton.type = 'button';
+      refreshButton.className = 'primary-button';
+      refreshButton.textContent = 'Check';
+      refreshButton.addEventListener('click', async () => {
+        if (!currentSession) {
+          return;
+        }
+        try {
+          const data = await postJson('/api/user/follows/check', {
+            sessionToken: currentSession.sessionToken,
+            username: item.target_username,
+            codeword: item.codeword
+          });
+          setFollowsStatusCard({
+            username: data.username,
+            status: data.status,
+            lastUpdated: data.last_status_update
+          });
+          setFollowsList(data.follows || []);
+        } catch {
+          // no-op
+        }
+      });
+
+      const unfollowButton = document.createElement('button');
+      unfollowButton.type = 'button';
+      unfollowButton.className = 'destructive-button';
+      unfollowButton.textContent = 'Unfollow';
+      unfollowButton.addEventListener('click', async () => {
+        if (!currentSession) {
+          return;
+        }
+        try {
+          const data = await postJson('/api/user/follows/remove', {
+            sessionToken: currentSession.sessionToken,
+            id: item.id
+          });
+          setFollowsList(data.follows || []);
+        } catch {
+          // no-op
+        }
+      });
+
+      actions.appendChild(refreshButton);
+      actions.appendChild(unfollowButton);
+      row.appendChild(actions);
+      list.appendChild(row);
+    });
+    const followsCheckForm = document.getElementById('follows-check-form');
+    if (followsCheckForm) {
+      const payload = formPayload(followsCheckForm);
+      setFollowButtonState(payload.username, payload.codeword);
+    }
   }
 
   function applyUserDashboard(data) {
     const dashboard = document.getElementById('user-dashboard');
     const adminDashboard = document.getElementById('admin-dashboard');
     show(adminDashboard, false);
-    show(dashboard, true);
     updateHomeLayout();
 
     const userStats = (data.dashboard && data.dashboard.user) || {};
     const stats = userStats.private_stats || {};
-    const usernameNode = dashboard.querySelector('[data-user="username"]');
+    const usernameNode = document.querySelector('[data-user="usernameBanner"]');
     if (usernameNode) {
       usernameNode.textContent = currentSession.username;
     }
@@ -304,7 +504,7 @@
     }
     const lastViewer = dashboard.querySelector('[data-user="lastViewerAccess"]');
     if (lastViewer) {
-      lastViewer.textContent = stats.last_viewer_access || 'Never';
+      lastViewer.textContent = formatFriendlyTime(stats.last_viewer_access);
     }
     const viewed = dashboard.querySelector('[data-user="messageViewed"]');
     if (viewed) {
@@ -316,6 +516,7 @@
       twofaForm.elements.enabled.checked = Boolean(userStats.twofa_enabled);
     }
     setCodewordList(userStats.codewords || []);
+    setFollowsList(userStats.follows || []);
   }
 
   function applyAdminDashboard(data) {
@@ -413,8 +614,8 @@
     const pingerDashboard = document.getElementById('pinger-dashboard');
     const pingerRevealButton = document.getElementById('pinger-reveal-message');
     const pingerMessage = document.getElementById('pinger-message');
-    const pingerLogout = document.getElementById('pinger-logout');
-    const pingerShareSite = document.getElementById('pinger-share-site');
+    const followsCheckForm = document.getElementById('follows-check-form');
+    const followsFeedback = document.getElementById('follows-feedback');
 
     const userDashboardFeedback = document.getElementById('user-dashboard-feedback');
     const adminDashboardFeedback = document.getElementById('admin-dashboard-feedback');
@@ -454,6 +655,7 @@
         username
       };
       applyUserDashboard(data);
+      activateTab('send-panel', false);
       refreshUserCodeword();
       setMessage(userDashboardFeedback, message, 'success');
     };
@@ -512,7 +714,7 @@
           const result = await postJson('/api/send-ping', payload);
           setMessage(
             sendPingFeedback,
-            `Saved. Last checked: ${result.private_stats.last_viewer_access}. Burn message viewed: ${result.private_stats.message_viewed_flag ? 'yes' : 'no'}.`,
+            `Saved. Last checked: ${formatFriendlyTime(result.private_stats.last_viewer_access)}. Burn message viewed: ${result.private_stats.message_viewed_flag ? 'yes' : 'no'}.`,
             'success'
           );
           sendPingForm.reset();
@@ -543,7 +745,7 @@
           });
           setMessage(
             quickStatusFeedback,
-            `Saved. Last checked: ${result.private_stats.last_viewer_access}. Burn message viewed: ${result.private_stats.message_viewed_flag ? 'yes' : 'no'}.`,
+            `Saved. Last checked: ${formatFriendlyTime(result.private_stats.last_viewer_access)}. Burn message viewed: ${result.private_stats.message_viewed_flag ? 'yes' : 'no'}.`,
             'success'
           );
           quickStatusForm.reset();
@@ -677,7 +879,10 @@
       setBusy(checkPingForm, true);
       setMessage(checkPingFeedback, 'Checking status…');
       try {
-        const payload = attachTurnstileSession(formPayload(checkPingForm));
+        const basePayload = formPayload(checkPingForm);
+        const payload = currentSession
+          ? { ...basePayload, sessionToken: currentSession.sessionToken }
+          : attachTurnstileSession(basePayload);
         const data = await postJson('/api/check-ping', payload);
         pingerSession = {
           sessionToken: data.session_token,
@@ -687,7 +892,7 @@
         const statusPill = pingerDashboard.querySelector('[data-pinger="status"]');
         statusPill.textContent = data.status ? '🟢 OK' : '🔴 Not OK';
         statusPill.dataset.state = data.status ? 'ok' : 'not-ok';
-        pingerDashboard.querySelector('[data-pinger="lastUpdated"]').textContent = data.last_status_update;
+        pingerDashboard.querySelector('[data-pinger="lastUpdated"]').textContent = formatFriendlyTime(data.last_status_update);
         show(pingerRevealButton, data.has_message);
         show(pingerMessage, false);
         show(pingerDashboard, true);
@@ -720,16 +925,6 @@
         pingerRevealButton.disabled = false;
         setMessage(checkPingFeedback, error.message, 'error');
       }
-    });
-
-    pingerLogout?.addEventListener('click', async () => {
-      await logoutAll();
-      setMessage(checkPingFeedback, 'Logged out.', 'success');
-    });
-
-    pingerShareSite?.addEventListener('click', async () => {
-      await navigator.clipboard.writeText(window.location.origin).catch(() => {});
-      setMessage(checkPingFeedback, 'Site link copied.', 'success');
     });
 
     document.getElementById('user-twofa-form')?.addEventListener('submit', async (event) => {
@@ -834,18 +1029,6 @@
       refreshUserCodeword();
     });
 
-    document.getElementById('user-share-link')?.addEventListener('click', () => {
-      if (!currentSession) {
-        return;
-      }
-      const link = `${window.location.origin}/?tab=check&user=${encodeURIComponent(currentSession.username)}`;
-      navigator.clipboard.writeText(link).catch(() => {});
-      const result = document.getElementById('user-share-result');
-      if (result) {
-        result.textContent = `Share link copied: ${link}`;
-      }
-    });
-
     document.getElementById('user-invite-form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (!currentSession) {
@@ -891,6 +1074,74 @@
     document.getElementById('user-logout')?.addEventListener('click', async () => {
       await logoutAll();
       setMessage(userDashboardFeedback, 'Logged out.', 'success');
+    });
+
+    followsCheckForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!currentSession) {
+        return;
+      }
+      setBusy(followsCheckForm, true);
+      try {
+        const payload = formPayload(followsCheckForm);
+        const data = await postJson('/api/user/follows/check', {
+          sessionToken: currentSession.sessionToken,
+          username: payload.username,
+          codeword: payload.codeword
+        });
+        setFollowsStatusCard({
+          username: data.username,
+          status: data.status,
+          lastUpdated: data.last_status_update
+        });
+        setFollowsList(data.follows || []);
+        setFollowButtonState(payload.username, payload.codeword);
+        setMessage(followsFeedback, 'Status checked.', 'success');
+      } catch (error) {
+        setMessage(followsFeedback, error.message, 'error');
+      } finally {
+        setBusy(followsCheckForm, false);
+      }
+    });
+
+    document.getElementById('follows-toggle-button')?.addEventListener('click', async () => {
+      if (!currentSession || !followsCheckForm) {
+        return;
+      }
+      const payload = formPayload(followsCheckForm);
+      const username = String(payload.username || '').trim();
+      const codeword = String(payload.codeword || '').trim();
+      if (!username || !codeword) {
+        setMessage(followsFeedback, 'Enter username and shared codeword first.', 'error');
+        return;
+      }
+      const list = document.getElementById('follows-list');
+      const match = Array.from(list?.querySelectorAll('li') || []).find((row) => row.dataset.username === username.toLowerCase() && row.dataset.codeword === codeword.toLowerCase());
+      try {
+        if (match) {
+          const id = Number(match.dataset.followId || 0);
+          const data = await postJson('/api/user/follows/remove', { sessionToken: currentSession.sessionToken, id });
+          setFollowsList(data.follows || []);
+          setMessage(followsFeedback, 'Unfollowed.', 'success');
+        } else {
+          const data = await postJson('/api/user/follows/add', {
+            sessionToken: currentSession.sessionToken,
+            username,
+            codeword
+          });
+          setFollowsList(data.follows || []);
+          setMessage(followsFeedback, 'Followed.', 'success');
+        }
+      } catch (error) {
+        setMessage(followsFeedback, error.message, 'error');
+      } finally {
+        setFollowButtonState(username, codeword);
+      }
+    });
+
+    followsCheckForm?.addEventListener('input', () => {
+      const payload = formPayload(followsCheckForm);
+      setFollowButtonState(payload.username, payload.codeword);
     });
 
     document.getElementById('admin-twofa-form')?.addEventListener('submit', async (event) => {
@@ -970,6 +1221,10 @@
 
   setupPwaShell();
   mountTurnstile();
+  document.getElementById('topbar-share-link')?.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(getShareLink()).catch(() => {});
+    showSharePopup('share link copied');
+  });
 
   if (view === 'home') {
     initHome();
