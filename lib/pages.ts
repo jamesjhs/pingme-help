@@ -42,7 +42,7 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
     </header>
     <main class="page">${content}</main>
     <footer class="footer">
-      <div>&copy;jahosi.co.uk 2026 | v0.3.0</div>
+      <div>&copy;jahosi.co.uk 2026 | v0.4.0</div>
       <div class="footer-links">
         <button id="footer-share-link" class="text-link-button" type="button">Share PingMe</button>
         <button id="install-app-link" class="text-link-button hidden" type="button">install app</button>

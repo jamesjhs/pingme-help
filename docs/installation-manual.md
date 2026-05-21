@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This guide covers local setup, production preparation, deployment, and troubleshooting for `pingme-help` `v0.3.0`.
+This guide covers local setup, production preparation, deployment, and troubleshooting for `pingme-help` `v0.4.0`.
 
 ## 2. System requirements
 
@@ -101,7 +101,7 @@ pm2 save
 ## 9. Post-install verification checklist
 
 - Homepage loads with tabs for Send a Ping, Register/Login, and Check a Ping.
-- `GET /readyz` returns `ok: true` and `version: v0.3.0`.
+- `GET /readyz` returns `ok: true` and `version: v0.4.0`.
 - Turnstile challenge renders when keys are configured.
 - Registration emails send successfully when SMTP is configured.
 - PWA manifest and service worker are reachable.
@@ -138,3 +138,62 @@ If `TURNSTILE_SECRET_KEY` is blank, the server bypasses Turnstile verification. 
 ### Email features do not work
 
 Verify SMTP host, port, credentials, and STARTTLS settings. Registration verification, invites, 2FA, and password reset all depend on successful outbound email.
+
+## 12. Amending admin credentials via the CLI
+
+### Changing the admin password
+
+The admin password is read from the `ADMIN_PASS` environment variable on every startup. To change it:
+
+1. Stop the service.
+2. Edit `.env` and set a new value for `ADMIN_PASS`:
+   ```bash
+   # open .env in your editor, then change:
+   ADMIN_PASS=your_new_strong_password
+   ```
+3. Restart the service:
+   ```bash
+   pm2 restart ecosystem.config.cjs   # PM2
+   # or
+   npm start                           # local
+   ```
+
+> **Note:** If a hashed password has previously been stored directly in the database (key `admin_password_hash` in the `admin_settings` table), it takes precedence over `ADMIN_PASS`. To force the environment variable to be used again, remove that row from the database before restarting:
+> ```bash
+> node -e "
+> const { DatabaseStore } = require('./dist/lib/database');
+> require('dotenv').config();
+> const store = new DatabaseStore(
+>   require('path').join(__dirname, 'data', 'pingme-help.sqlite'),
+>   process.env.DB_ENCRYPTION_KEY
+> );
+> store.db.prepare(\"DELETE FROM admin_settings WHERE setting_key = 'admin_password_hash'\").run();
+> console.log('admin_password_hash cleared');
+> store.db.close();
+> "
+> ```
+
+### Changing the admin 2FA email address
+
+The admin 2FA email address is persisted in the encrypted database under the `admin_twofa_email` key. It can be updated without restarting the service using the Node.js REPL or a one-liner:
+
+1. Build the project (if not already built):
+   ```bash
+   npm run build
+   ```
+2. Run the following command, replacing `admin@example.com` with the new address:
+   ```bash
+   node -e "
+   const { DatabaseStore } = require('./dist/lib/database');
+   require('dotenv').config();
+   const store = new DatabaseStore(
+     require('path').join(__dirname, 'data', 'pingme-help.sqlite'),
+     process.env.DB_ENCRYPTION_KEY
+   );
+   store.setSetting('admin_twofa_email', 'admin@example.com');
+   console.log('admin_twofa_email updated');
+   store.db.close();
+   "
+   ```
+
+The change takes effect immediately for the next login attempt; no service restart is required.
