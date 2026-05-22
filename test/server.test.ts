@@ -225,6 +225,42 @@ test('send ping updates status and check ping can reveal burn message once', asy
   await close();
 });
 
+test('send ping can store requester IP as burn message when not ok', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const { base, store, close } = await startServer(makeConfig(tempDir));
+
+  store.registerUser({
+    username: 'alex',
+    passwordHash: hashPassword('password123'),
+    email: 'alex@example.com',
+    createdAt: '2026-05-19T00:00:00.000Z'
+  });
+  store.createCodeword('alex', 'north-echo', '2026-05-19T00:00:00.000Z');
+
+  const sendPing = await postJson(base, '/api/send-ping', {
+    email: 'alex@example.com',
+    password: 'password123',
+    status: 'not_ok',
+    message: 'ignore this',
+    shareIpAsBurnMessage: true
+  });
+  assert.equal(sendPing.status, 200);
+
+  const check = await postJson(base, '/api/check-ping', {
+    username: 'alex',
+    codeword: 'NORTH-ECHO'
+  });
+  assert.equal(check.status, 200);
+  assert.equal(check.data.status, false);
+  assert.equal(check.data.has_message, true);
+
+  const reveal = await postJson(base, '/api/pinger/reveal', { sessionToken: check.data.session_token });
+  assert.equal(reveal.status, 200);
+  assert.equal(reveal.data.message, '127.0.0.1');
+
+  await close();
+});
+
 test('user can follow and unfollow a username/codeword pair and check status', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
   const { base, store, close } = await startServer(makeConfig(tempDir));

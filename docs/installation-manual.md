@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This guide covers local setup, production preparation, deployment, and troubleshooting for `pingme-help` `v0.4.0`.
+This guide covers local setup, production preparation, deployment, and troubleshooting for `pingme-help` `v0.5.0`.
 
 ## 2. System requirements
 
@@ -101,7 +101,8 @@ pm2 save
 ## 9. Post-install verification checklist
 
 - Homepage loads with tabs for Send a Ping, Register/Login, and Check a Ping.
-- `GET /readyz` returns `ok: true` and `version: v0.4.0`.
+- `GET /readyz` returns `ok: true` and `version: v0.5.0`.
+- In Send a Ping, selecting “I’m Not OK” reveals an optional prompt to share the request IP as the one-read burn message (best-effort; VPN/firewall/proxy layers may change observed IP).
 - Turnstile challenge renders when keys are configured.
 - Registration emails send successfully when SMTP is configured.
 - PWA manifest and service worker are reachable.
