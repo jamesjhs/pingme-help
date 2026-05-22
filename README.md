@@ -2,7 +2,7 @@
 
 Privacy-first readiness sharing for people who want a lightweight way to check in, share status, and let trusted followers verify that they are safe.
 
-Current application version: `v0.4.0`
+Current application version: `v0.5.0`
 
 ## Feature overview
 
@@ -11,6 +11,7 @@ Current application version: `v0.4.0`
 - Email-first authentication for users, with admin username fallback support.
 - Email verification, email-based password reset, and optional email 2FA for users and admins.
 - Shared codewords for follower access, including one-read burn messages.
+- Optional best-effort IP burn message capture for “I’m Not OK” updates (with VPN/firewall caveats).
 - User dashboard for status updates, codeword management, invites, password changes, and account deletion.
 - Admin dashboard for SMTP configuration, invite sending, and admin 2FA.
 - Encrypted SQLite storage, hardened headers, Turnstile integration, and request-body/input sanitisation.
@@ -86,6 +87,7 @@ npm run audit
 
 - [Installation Manual](./docs/installation-manual.md)
 - [Technical Reference](./docs/technical-reference.md)
+- Full security, efficiency, endpoint, and function deep-dive is in the Technical Reference.
 
 ## Deployment notes
 

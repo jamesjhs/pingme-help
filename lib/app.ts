@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const crypto = require('node:crypto');
+const net = require('node:net');
 const { URL } = require('node:url');
 const nodemailer = require('nodemailer');
 const {
@@ -257,7 +258,31 @@ function sendTooManyRequests(response, retryAfterMs) {
 function logRequestError(method, pathName, error, level = 'error') {
   const type = error && error.constructor ? error.constructor.name : 'Error';
   const message = error && error.message ? error.message : 'Unknown error';
-  const line = `[${nowIso()}] ${method} ${pathName} failed: ${type}: ${message}`;
+  const line = `[${nowIso()  }
+
+  function shouldShareIpAsBurnMessage(payload) {
+    const raw = payload && payload.shareIpAsBurnMessage;
+    return raw === true || raw === 'true' || raw === 'on' || raw === '1' || raw === 1;
+  }
+
+  function getClientIpAddress(request) {
+    const source = String(request?.socket?.remoteAddress || '').trim();
+    if (!source) {
+      return null;
+    }
+    let candidate = source;
+    if (candidate.startsWith('::ffff:')) {
+      candidate = candidate.slice(7);
+    }
+    const zoneMarker = candidate.indexOf('%');
+    if (zoneMarker !== -1) {
+      candidate = candidate.slice(0, zoneMarker);
+    }
+    if (candidate === '::1') {
+      return '127.0.0.1';
+    }
+    return net.isIP(candidate) ? candidate : null;
+  }] ${method} ${pathName} failed: ${type}: ${message}`;
   if (level === 'warn') {
     console.warn(line);
     return;
@@ -664,8 +689,9 @@ function createServer({ config, store }) {
         }
 
         const password = normalizePassword(payload.password);
-        const burnMessage = sanitizeMessage(payload.message);
         const status = payload.status === 'not_ok' ? 0 : 1;
+        const wantsIpBurnMessage = status === 0 && shouldShareIpAsBurnMessage(payload);
+        const burnMessage = wantsIpBurnMessage ? (getClientIpAddress(request) || sanitizeMessage(payload.message)) : sanitizeMessage(payload.message);
         const user = loginEmail ? store.getUserByEmail(loginEmail) : store.getUser(inputUsername);
         if (!user || !verifyPassword(password, user.password_hash)) {
           lockout.recordFailure(lockoutKey);
@@ -694,8 +720,9 @@ function createServer({ config, store }) {
 
       if (url.pathname === '/api/user/status') {
         const { session } = ensureAuthedSession(payload, sessions, 'user');
-        const burnMessage = sanitizeMessage(payload.message);
         const status = payload.status === 'not_ok' ? 0 : 1;
+        const wantsIpBurnMessage = status === 0 && shouldShareIpAsBurnMessage(payload);
+        const burnMessage = wantsIpBurnMessage ? (getClientIpAddress(request) || sanitizeMessage(payload.message)) : sanitizeMessage(payload.message);
         store.saveUserStatus({
           username: session.username,
           status,

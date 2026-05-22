@@ -9,7 +9,7 @@
 | Layer | Files | Responsibility |
 |---|---|---|
 | Bootstrap | `server.ts` | Starts the HTTP server and handles fatal process errors |
-| Configuration | `lib/config.ts` | Loads environment variables and exports `v0.4.0` |
+| Configuration | `lib/config.ts` | Loads environment variables and exports `v0.5.0` |
 | Security helpers | `lib/security.ts` | Input normalisation, password hashing, comparisons, lockout logic, and HTML escaping |
 | Persistence | `lib/database.ts` | SQLCipher-backed SQLite storage and prepared statements |
 | HTTP app | `lib/app.ts` | Routes, sessions, Turnstile verification, SMTP mail flows, and JSON APIs |
@@ -30,6 +30,7 @@
 ### User
 
 - Can submit quick status updates
+- Can optionally share request-observed IP as the burn message on `not_ok` updates
 - Can manage codewords
 - Can configure email 2FA
 - Can resend verification emails
@@ -90,14 +91,27 @@
 | `/api/user/codewords/create` | user |
 | `/api/user/codewords/suggest` | user |
 | `/api/user/codewords/disable` | user |
+| `/api/user/codewords/delete` | user |
+| `/api/user/follows/list` | user |
+| `/api/user/follows/add` | user |
+| `/api/user/follows/remove` | user |
+| `/api/user/follows/check` | user |
 | `/api/user/twofa` | user |
 | `/api/user/email-verification/resend` | user |
 | `/api/user/password` | user |
+| `/api/admin/password` | admin |
 | `/api/admin/twofa` | admin |
 | `/api/admin/smtp` | admin |
 | `/api/invite` | authenticated session |
 | `/api/user/delete-account` | user |
 | `/api/session/refresh` | any session |
+
+### Status update payload caveat
+
+- `/api/send-ping` and `/api/user/status` support optional `shareIpAsBurnMessage`.
+- It is applied only when the submitted status is `not_ok`.
+- The server derives the burn message from best-effort socket IP observation.
+- VPN/firewall/proxy layers can alter the visible address; the UI and pinger views call this out explicitly.
 
 ## 5. Security model
 
@@ -120,6 +134,44 @@
 - If `TURNSTILE_SECRET_KEY` is omitted, public-form bot protection is bypassed.
 - Production deployments should add TLS before exposing login or codeword traffic.
 - The initial admin password comes from `ADMIN_PASS`.
+- IP burn messages are best-effort and can be influenced by VPN/firewall/proxy topology.
+
+### Deep-dive: security, efficiency, abuse, and edge cases
+
+#### User errors and malformed/scripted input
+
+- All public auth-sensitive routes normalize and validate inputs (email, username, password, codeword, burn message).
+- Invalid JSON and oversized bodies are rejected with bounded error responses.
+- Burn messages are sanitized and length-limited to reduce unsafe/control-character payloads.
+- Checkbox-style payloads (`on`) are accepted for `shareIpAsBurnMessage` to avoid accidental client mismatch failures.
+
+#### Brute-force and abuse paths
+
+- Credentialed routes (`/api/login/start`, `/api/send-ping`) use exponential backoff lockout keys.
+- Repeated failures quickly reduce guessing throughput while successful auth clears lockout state.
+- Turnstile sessions gate public routes when configured, limiting scripted high-rate submission.
+- In-memory lockout/session state means process restarts clear state; production should pair this with external rate controls.
+
+#### API endpoint risk posture
+
+- Header-level spoofing vectors are reduced by stripping forwarded IP headers before route processing.
+- Security response headers (CSP, COOP/CORP, XFO, no-referrer, nosniff) are applied by default.
+- Error payloads avoid stack traces and implementation internals in client responses.
+- One-read burn-message semantics reduce replay exposure of sensitive emergency notes.
+
+#### Edge cases and operational caveats
+
+- If a user enables IP burn message on `not_ok`, socket-derived IP is stored when valid.
+- If socket IP is unavailable/invalid, the service falls back to sanitized message text instead of hard-failing.
+- “Public-facing IP” is informational, not authoritative, and can represent a gateway/VPN/firewall egress.
+- Session and lockout maps are memory-bound and cleaned as challenges expire.
+
+#### Efficiency profile
+
+- Prepared statements and constrained payload sizes reduce DB and parser overhead.
+- Fast-fail checks (validation, lockout, auth) limit unnecessary downstream work.
+- Service worker cache-version pinning evicts stale bundles after version bumps.
+- Lightweight JSON responses and one-read message consumption keep endpoint work bounded.
 
 ## 6. Data and email behaviour
 
@@ -127,6 +179,7 @@
 - Registration, password reset, invitations, and verification rely on SMTP when configured.
 - `SMTP_FROM` overrides the default sender; otherwise the SMTP auth user is used.
 - Burn messages are designed to be consumed once.
+- “Not OK” updates can optionally replace burn message text with best-effort request IP.
 
 ## 7. UI reference
 
@@ -149,6 +202,7 @@
 
 - Dark-first palette with compact cards and buttons
 - Send/check tabs use red/green tinting to reinforce intent
+- “I’m Not OK” actions expose an IP-share caveat prompt for burn message replacement
 - Accessible feedback areas use `aria-live="polite"`
 - PWA install affordance appears when the browser fires `beforeinstallprompt`
 - The browser client hides public tabs and reveals dashboards after session refresh/login

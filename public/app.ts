@@ -699,6 +699,7 @@
     const pingerDashboard = document.getElementById('pinger-dashboard');
     const pingerRevealButton = document.getElementById('pinger-reveal-message');
     const pingerMessage = document.getElementById('pinger-message');
+    const pingerIpCaveat = document.getElementById('pinger-ip-caveat');
     const followsCheckForm = document.getElementById('follows-check-form');
     const followsFeedback = document.getElementById('follows-feedback');
 
@@ -709,11 +710,23 @@
     const burnCharCount = document.getElementById('burn-char-count');
     const quickBurnInput = document.getElementById('quick-burn-message-input');
     const quickBurnCharCount = document.getElementById('quick-burn-char-count');
+    const sendIpSharePrompt = document.getElementById('send-ip-share-prompt');
+    const sendIpShareInput = document.getElementById('send-ip-share-input');
+    const quickIpSharePrompt = document.getElementById('quick-ip-share-prompt');
+    const quickIpShareInput = document.getElementById('quick-ip-share-input');
 
     burnInput?.addEventListener('input', () => updateCharCount(burnInput, burnCharCount));
     quickBurnInput?.addEventListener('input', () => updateCharCount(quickBurnInput, quickBurnCharCount));
     updateCharCount(burnInput, burnCharCount);
     updateCharCount(quickBurnInput, quickBurnCharCount);
+
+    const syncIpSharePrompt = (statusValue, promptEl, checkboxEl) => {
+      const shouldShow = statusValue === 'not_ok';
+      show(promptEl, shouldShow);
+      if (!shouldShow && checkboxEl) {
+        checkboxEl.checked = false;
+      }
+    };
 
     const refreshUserCodeword = () => {
       const input = userCodewordCreateForm?.elements?.codeword;
@@ -814,6 +827,7 @@
     document.querySelectorAll('[data-status-value]').forEach((button) => {
       button.addEventListener('click', async () => {
         sendPingForm.elements.status.value = button.dataset.statusValue;
+        syncIpSharePrompt(sendPingForm.elements.status.value, sendIpSharePrompt, sendIpShareInput);
         setMessage(sendPingFeedback, 'Saving status…');
         setBusy(sendPingForm, true);
         try {
@@ -822,6 +836,7 @@
           setMessage(sendPingFeedback, 'Saved.', 'success');
           sendPingForm.reset();
           updateCharCount(burnInput, burnCharCount);
+          syncIpSharePrompt(sendPingForm.elements.status.value, sendIpSharePrompt, sendIpShareInput);
         } catch (error) {
           setMessage(sendPingFeedback, error.message, 'error');
           if (siteKey) {
@@ -839,6 +854,7 @@
           return;
         }
         quickStatusForm.elements.status.value = button.dataset.quickStatusValue;
+        syncIpSharePrompt(quickStatusForm.elements.status.value, quickIpSharePrompt, quickIpShareInput);
         setMessage(quickStatusFeedback, 'Saving status…');
         setBusy(quickStatusForm, true);
         try {
@@ -853,6 +869,7 @@
           );
           quickStatusForm.reset();
           updateCharCount(quickBurnInput, quickBurnCharCount);
+          syncIpSharePrompt(quickStatusForm.elements.status.value, quickIpSharePrompt, quickIpShareInput);
           applyUserDashboard({ dashboard: { user: { ...(await postJson('/api/session/refresh', { sessionToken: currentSession.sessionToken })).dashboard.user } } });
         } catch (error) {
           setMessage(quickStatusFeedback, error.message, 'error');
@@ -861,6 +878,8 @@
         }
       });
     });
+    syncIpSharePrompt(sendPingForm?.elements?.status?.value, sendIpSharePrompt, sendIpShareInput);
+    syncIpSharePrompt(quickStatusForm?.elements?.status?.value, quickIpSharePrompt, quickIpShareInput);
 
     loginForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -1014,6 +1033,7 @@
         pingerDashboard.querySelector('[data-pinger="lastUpdated"]').textContent = formatFriendlyTime(data.last_status_update);
         show(pingerRevealButton, data.has_message);
         show(pingerMessage, false);
+        show(pingerIpCaveat, true);
         show(pingerDashboard, true);
         setMessage(checkPingFeedback, 'Status unlocked.', 'success');
       } catch (error) {

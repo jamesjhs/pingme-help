@@ -639,6 +639,25 @@ input[type="checkbox"] {
   margin-top: 0.15rem;
 }
 
+.ip-share-prompt {
+  border: 1px solid rgba(192, 50, 33, 0.28);
+  border-radius: 0.8rem;
+  padding: 0.7rem 0.8rem;
+  background: rgba(192, 50, 33, 0.08);
+}
+
+.ip-share-prompt .confirm-label small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted);
+}
+
+.pinger-ip-caveat {
+  margin: 0.45rem 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
 .char-count {
   font-size: 0.8rem;
   font-weight: 400;

@@ -42,7 +42,7 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
     </header>
     <main class="page">${content}</main>
     <footer class="footer">
-      <div>&copy;jahosi.co.uk 2026 | v0.4.0</div>
+      <div>&copy;jahosi.co.uk 2026 | v0.5.0</div>
       <div class="footer-links">
         <button id="footer-share-link" class="text-link-button" type="button">Share PingMe</button>
         <button id="install-app-link" class="text-link-button hidden" type="button">install app</button>
@@ -86,6 +86,15 @@ function renderHomePage(siteKey) {
               <button class="status-button ok" type="button" data-status-value="ok" data-public-action>I&#39;m OK</button>
               <button class="status-button not-ok" type="button" data-status-value="not_ok" data-public-action>I&#39;m Not OK</button>
             </div>
+            <div id="send-ip-share-prompt" class="ip-share-prompt hidden">
+              <label class="confirm-label">
+                <input id="send-ip-share-input" name="shareIpAsBurnMessage" type="checkbox">
+                <span>
+                  Do you want to share your public-facing IP address as the burn message?
+                  <small>This might not work behind firewalls or VPNs.</small>
+                </span>
+              </label>
+            </div>
           </form>
           <form id="quick-status-form" class="stack-form hidden" novalidate>
             <label>
@@ -97,6 +106,15 @@ function renderHomePage(siteKey) {
             <div class="status-actions">
               <button class="status-button ok" type="button" data-quick-status-value="ok">I&#39;m OK</button>
               <button class="status-button not-ok" type="button" data-quick-status-value="not_ok">I&#39;m Not OK</button>
+            </div>
+            <div id="quick-ip-share-prompt" class="ip-share-prompt hidden">
+              <label class="confirm-label">
+                <input id="quick-ip-share-input" name="shareIpAsBurnMessage" type="checkbox">
+                <span>
+                  Do you want to share your public-facing IP address as the burn message?
+                  <small>This might not work behind firewalls or VPNs.</small>
+                </span>
+              </label>
             </div>
           </form>
           <div id="quick-status-feedback" class="feedback hidden" aria-live="polite"></div>
@@ -184,6 +202,7 @@ function renderHomePage(siteKey) {
             <p><strong>Last Updated:</strong> <span data-pinger="lastUpdated"></span></p>
             <button id="pinger-reveal-message" class="blur-card hidden" type="button">View burn message (view once)</button>
             <div id="pinger-message" class="card inset-card hidden"></div>
+            <p id="pinger-ip-caveat" class="pinger-ip-caveat hidden">True IP address may be affected by firewalls or VPNs, but it&#39;s the best we can do.</p>
             <div class="pinger-register-note">
               Want subscription alerts? <a href="/?tab=login">Create an account</a> and follow this username with a shared codeword.
             </div>
@@ -335,12 +354,12 @@ function renderPrivacyPage(siteKey) {
         <h1>pingme.help Privacy Policy</h1>
         <p>pingme.help is built to limit personal data collection, but no online service is risk-free. By using this website you accept that you do so at your own risk, and that any data you choose to store is also at your own risk.</p>
         <h2>What we store</h2>
-        <p>We store account usernames, password hashes, account emails, status updates, optional burn messages, and timestamps needed to show recent activity. We may also process and store email-related settings needed to deliver account, invitation, and verification messages.</p>
+        <p>We store account usernames, password hashes, account emails, status updates, optional burn messages, and timestamps needed to show recent activity. If a user opts in while submitting an “I&#39;m Not OK” update, the burn message may store the request IP observed by this service. We may also process and store email-related settings needed to deliver account, invitation, and verification messages.</p>
         <h2>Browser sessions and verification</h2>
         <p>During active use the site keeps temporary session tokens in browser memory so the current browser tab can stay signed in and complete protected actions. These tokens are not written to cookies or local storage by the app.</p>
         <p>If bot protection is enabled, Cloudflare Turnstile is loaded to verify that a visitor is human before public forms can be submitted. That challenge is provided by Cloudflare, which may process challenge-related network and browser metadata under its own terms.</p>
         <h2>Network and email limits</h2>
-        <p>Even with encrypted storage and security controls, network providers and email providers may still process IP addresses and delivery metadata outside this site’s direct control. No method can guarantee complete anonymity or permanent availability.</p>
+        <p>Even with encrypted storage and security controls, network providers and email providers may still process IP addresses and delivery metadata outside this site’s direct control. VPNs, firewalls, and proxy layers can affect what IP is visible to this service, so any shared IP is best-effort only. No method can guarantee complete anonymity or permanent availability.</p>
         <h2>Availability and alternatives</h2>
         <p>The service may be changed, interrupted, or taken offline at any time without notice. If continuity is critical for you, consider also using additional services such as Dead Man’s Switch alternatives.</p>
         <h2>Your responsibility</h2>
