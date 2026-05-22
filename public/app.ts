@@ -206,6 +206,8 @@
     const tabAccount = document.getElementById('tab-btn-account');
     const sendPanelCodewords = document.getElementById('send-panel-codewords');
     const checkPanelFollows = document.getElementById('check-panel-follows');
+    const checkPingForm = document.getElementById('check-ping-form');
+    const checkPingFeedback = document.getElementById('check-ping-feedback');
 
     show(homeTabs, !isAdmin);
     show(publicSendForm, !isUser);
@@ -218,6 +220,8 @@
     show(tabAccount, isUser);
     show(sendPanelCodewords, isUser);
     show(checkPanelFollows, isUser);
+    show(checkPingForm, !isUser);
+    show(checkPingFeedback, !isUser);
     show(siteVerification, !isLoggedIn);
     show(topbarTagline, !isLoggedIn);
     if (pitchCard) {
@@ -381,11 +385,14 @@
     list.innerHTML = '';
     items.forEach((item) => {
       const row = document.createElement('li');
-      row.innerHTML = `<strong>${item.codeword}</strong> — ${item.is_active ? 'active' : 'disabled'}`;
+      row.innerHTML = `
+        <div><strong>${item.codeword}</strong> — ${item.is_active ? 'active' : 'disabled'}</div>
+        <div>Last viewed: ${formatFriendlyTime(item.last_checked_at)}</div>
+      `;
       const toggleButton = document.createElement('button');
       toggleButton.type = 'button';
-      toggleButton.className = item.is_active ? 'destructive-button' : 'primary-button';
-      toggleButton.textContent = item.is_active ? 'Disable' : 'Enable';
+      toggleButton.className = 'text-link-button';
+      toggleButton.textContent = item.is_active ? '[Suspend]' : '[Resume]';
       toggleButton.addEventListener('click', async () => {
         if (!currentSession) {
           return;
@@ -403,8 +410,8 @@
       });
       const reshareButton = document.createElement('button');
       reshareButton.type = 'button';
-      reshareButton.className = 'primary-button';
-      reshareButton.textContent = 'Share';
+      reshareButton.className = 'text-link-button';
+      reshareButton.textContent = '[Share again]';
       reshareButton.addEventListener('click', async () => {
         const link = `${window.location.origin}/?tab=check&user=${encodeURIComponent(currentSession?.username || '')}`;
         const shareText = `PingMe check\nUsername: ${currentSession?.username || ''}\nCodeword: ${item.codeword}\nLink: ${link}`;
@@ -413,8 +420,8 @@
       });
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
-      deleteButton.className = 'destructive-button';
-      deleteButton.textContent = 'Delete';
+      deleteButton.className = 'text-link-button';
+      deleteButton.textContent = '[Delete]';
       deleteButton.addEventListener('click', async () => {
         if (!currentSession) {
           return;
@@ -473,10 +480,12 @@
 
   function setFollowsList(items) {
     const list = document.getElementById('follows-list');
+    const followsListCard = document.getElementById('follows-list-card');
     if (!list) {
       return;
     }
     list.innerHTML = '';
+    show(followsListCard, Array.isArray(items) && items.length > 0);
     items.forEach((item) => {
       const row = document.createElement('li');
       row.className = 'follows-row';
