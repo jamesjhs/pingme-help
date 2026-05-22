@@ -62,16 +62,16 @@ function renderHomePage(siteKey) {
     content: `
       <section id="home-tabs" class="tabs card" aria-label="Homepage actions">
         <div class="tab-row" role="tablist">
-          <button class="tab-button" type="button" id="tab-btn-send" data-tab-target="send-panel" role="tab" aria-selected="false" aria-controls="send-panel">Send a Ping</button>
+          <button class="tab-button" type="button" id="tab-btn-send" data-tab-target="send-panel" role="tab" aria-selected="false" aria-controls="send-panel">Share my status</button>
           <button class="tab-button" type="button" id="tab-btn-login" data-tab-target="login-panel" role="tab" aria-selected="false" aria-controls="login-panel">Register/Login</button>
-          <button class="tab-button" type="button" id="tab-btn-check" data-tab-target="check-panel" role="tab" aria-selected="false" aria-controls="check-panel">Check a Ping</button>
+          <button class="tab-button" type="button" id="tab-btn-check" data-tab-target="check-panel" role="tab" aria-selected="false" aria-controls="check-panel">Ping a friend</button>
           <button class="tab-button hidden" type="button" id="tab-btn-account" data-tab-target="account-panel" role="tab" aria-selected="false" aria-controls="account-panel">Account</button>
         </div>
 
         <section id="send-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-send" hidden>
           <div id="send-user-heading" class="hidden">
             <p class="eyebrow">Account</p>
-            <h2>Manage your check-ins and followers</h2>
+            <h2>Manage your status and pingers</h2>
           </div>
           <form id="send-ping-form" class="stack-form public-send-form" novalidate>
             <label><span>Email Address</span><input name="email" type="email" maxlength="254" required autocomplete="email" ${CA}></label>
@@ -133,7 +133,7 @@ function renderHomePage(siteKey) {
               <button id="share-codeword-button" class="primary-button" type="button">Share Follow Link</button>
             </form>
 
-            <h3 class="codewords-heading">Codewords</h3>
+            <h3 class="codewords-heading">Active codewords</h3>
             <div class="card inset-card">
               <ul id="user-codeword-list"></ul>
             </div>
@@ -222,7 +222,7 @@ function renderHomePage(siteKey) {
               <div class="status-pill" data-follows="status"></div>
               <p><strong>Last Updated:</strong> <span data-follows="lastUpdated"></span></p>
             </section>
-            <section class="card inset-card">
+            <section id="follows-list-card" class="card inset-card">
               <h3>Following</h3>
               <ul id="follows-list"></ul>
             </section>
