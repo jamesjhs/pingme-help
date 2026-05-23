@@ -15,6 +15,28 @@ Current application version: `v0.5.0`
 - User dashboard for status updates, codeword management, invites, password changes, and account deletion.
 - Admin dashboard for SMTP configuration, invite sending, and admin 2FA.
 - Encrypted SQLite storage, hardened headers, Turnstile integration, and request-body/input sanitisation.
+- SEO/crawler-ready public pages with canonical/social metadata, JSON-LD, `robots.txt`, and `sitemap.xml`.
+
+## Public positioning and unique sales points
+
+### Public-facing value
+
+- Fast safety updates with clear “I’m OK / I’m Not OK” status actions.
+- Codeword-based access so only trusted people can check status updates.
+- One-read burn messages for sensitive context that should not persist.
+- Follows and invite flows to keep trusted circles connected with low friction.
+
+### Administrator-facing value
+
+- Centralised admin controls for SMTP, invitations, admin password updates, and admin 2FA.
+- Secure operational tooling without exposing root/system-level controls in public pages.
+- Role-based separation between public visitors, users, pingers, and admins.
+
+### Competitive compare/contrast (category-level)
+
+- **Compared with tracking-heavy family safety suites:** PingMe.help focuses on intentional check-ins over continuous location tracking.
+- **Compared with generic chat apps:** PingMe.help provides status-specific workflows, codeword gating, and one-read emergency context.
+- **Compared with dead-man-switch-only tools:** PingMe.help supports proactive real-time updates and trusted follower checks.
 
 ## Repository layout
 
