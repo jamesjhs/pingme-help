@@ -3,16 +3,37 @@ const { escapeHtml } = require('./security');
 
 const CA = 'autocapitalize="none" autocorrect="off" spellcheck="false"';
 
-function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
+function renderLayout({ title, view, content, turnstileSiteKey = '', seo = {} }) {
   const safeTitle = escapeHtml(title);
   const hasTurnstile = Boolean(turnstileSiteKey);
+  const description = escapeHtml(seo.description || 'Private readiness check-ins for people you trust.');
+  const keywords = escapeHtml(seo.keywords || 'private check in app, safety check in, emergency status sharing, burn message');
+  const canonicalUrl = escapeHtml(seo.canonicalUrl || `https://pingme.help${view === 'home' ? '/' : `/${view}`}`);
+  const socialTitle = escapeHtml(seo.socialTitle || title);
+  const socialImage = escapeHtml(seo.socialImage || 'https://pingme.help/assets/icon.svg');
+  const socialType = escapeHtml(seo.socialType || 'website');
+  const jsonLdMarkup = seo.jsonLd
+    ? `<script type="application/ld+json">${JSON.stringify(seo.jsonLd).replace(/</g, '\\u003c')}</script>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="description" content="Private readiness check-ins for people you trust.">
+  <meta name="description" content="${description}">
+  <meta name="keywords" content="${keywords}">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link rel="canonical" href="${canonicalUrl}">
+  <meta property="og:title" content="${socialTitle}">
+  <meta property="og:description" content="${description}">
+  <meta property="og:type" content="${socialType}">
+  <meta property="og:url" content="${canonicalUrl}">
+  <meta property="og:image" content="${socialImage}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${socialTitle}">
+  <meta name="twitter:description" content="${description}">
+  <meta name="twitter:image" content="${socialImage}">
   <meta name="theme-color" content="#070b12">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -26,6 +47,7 @@ function renderLayout({ title, view, content, turnstileSiteKey = '' }) {
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
   <link rel="stylesheet" href="/assets/styles.css">
+  ${jsonLdMarkup}
   ${hasTurnstile ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>' : ''}
   <script src="/assets/app.js" defer></script>
 </head>
@@ -59,6 +81,32 @@ function renderHomePage(siteKey) {
     title: 'pingme.help',
     view: 'home',
     turnstileSiteKey: siteKey,
+    seo: {
+      description: 'PingMe.help is a privacy-first safety check-in platform for trusted contacts, with one-read burn messages, invite-only follows, and secure admin operations.',
+      keywords: 'safety check in app, private status sharing, emergency burn message, trusted contact monitoring, privacy-first status platform',
+      socialTitle: 'PingMe.help | Privacy-first safety check-ins',
+      canonicalUrl: 'https://pingme.help/',
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'PingMe.help',
+        applicationCategory: 'SecurityApplication',
+        operatingSystem: 'Web',
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'USD'
+        },
+        description: 'Privacy-first readiness check-ins for trusted contacts with one-read burn messages and invite-based follow access.',
+        featureList: [
+          'Email-first secure login and optional 2FA',
+          'One-read burn messages for emergency updates',
+          'Codeword-gated status checks and follow subscriptions',
+          'Public-facing and admin-facing dashboards',
+          'Encrypted SQLite storage and optional anti-bot verification'
+        ]
+      }
+    },
     content: `
       <section id="home-tabs" class="tabs card" aria-label="Homepage actions">
         <div class="tab-row" role="tablist">
@@ -276,7 +324,7 @@ function renderHomePage(siteKey) {
       <section class="card pitch-card" aria-label="About PingMe.help">
         <p class="eyebrow">Why PingMe.help?</p>
         <h2 class="pitch-headline">Private check-ins without the noise.</h2>
-        <p class="pitch-lede">PingMe.help is the private, zero-noise check-in service for people who look out for each other — no apps to install, no accounts to share, no data to sell.</p>
+        <p class="pitch-lede">PingMe.help is the private, zero-noise check-in service for people who look out for each other — no apps to install, no accounts to share, no data to sell. It is designed for public users who need fast updates and administrators who need secure, practical controls.</p>
         <ul class="pitch-features">
           <li class="pitch-feature">
             <span class="pitch-icon" aria-hidden="true">🔒</span>
@@ -307,6 +355,44 @@ function renderHomePage(siteKey) {
             </div>
           </li>
         </ul>
+        <div class="pitch-columns">
+          <section class="pitch-subcard" aria-label="Public features">
+            <h3>Public-facing features</h3>
+            <ul>
+              <li>Share your current status in seconds with a clear OK / Not OK flow.</li>
+              <li>Use codewords so only trusted people can check your latest update.</li>
+              <li>Follow trusted users for quick repeat checks from your own account.</li>
+              <li>Register, reset passwords, and secure accounts with optional email 2FA.</li>
+            </ul>
+          </section>
+          <section class="pitch-subcard" aria-label="Administrator features">
+            <h3>Administrator features</h3>
+            <ul>
+              <li>Manage SMTP delivery settings for verification, reset, and invite emails.</li>
+              <li>Enable and maintain admin 2FA and rotate admin passwords safely.</li>
+              <li>Track total registered users and send invitations from one dashboard.</li>
+              <li>Root-level system controls are intentionally excluded from this public interface.</li>
+            </ul>
+          </section>
+        </div>
+        <section class="pitch-compare" aria-label="Competitive comparison">
+          <h3>How PingMe.help compares</h3>
+          <p>Many safety tools are either heavy family-tracking suites, generic messaging apps, or rigid dead-man-switch products. PingMe.help focuses on private, fast, trusted check-ins with less friction and less exposure.</p>
+          <div class="pitch-compare-grid">
+            <article class="pitch-compare-item">
+              <strong>Vs tracking-heavy family apps</strong>
+              <p>PingMe.help avoids always-on location timelines and keeps updates intentional, event-based, and consent-driven.</p>
+            </article>
+            <article class="pitch-compare-item">
+              <strong>Vs generic chat apps</strong>
+              <p>PingMe.help adds purpose-built status states, codeword access, and one-read emergency context that chat threads do not provide.</p>
+            </article>
+            <article class="pitch-compare-item">
+              <strong>Vs dead-man-switch products</strong>
+              <p>PingMe.help supports real-time, user-initiated updates and trusted follower checks instead of only delayed fail-safe triggers.</p>
+            </article>
+          </div>
+        </section>
         <button class="primary-button pitch-cta" type="button" data-open-tab="login-panel" data-auth-mode="register">Get started — it&#39;s free &rarr;</button>
       </section>
 

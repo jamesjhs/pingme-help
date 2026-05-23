@@ -283,3 +283,36 @@ Versioned release metadata is surfaced in:
 - `lib/config.ts`
 - `/readyz`
 - shared page footer
+
+## 11. Public SEO and product positioning
+
+### Landing-page SEO implementation
+
+- Homepage now includes expanded metadata for search/social discovery:
+  - description and keyword meta tags
+  - canonical URL
+  - Open Graph and Twitter summary tags
+  - JSON-LD (`SoftwareApplication`) structured data
+- Messaging is written for plain-language search intent around private safety check-ins, trusted-contact status sharing, and emergency context handoff.
+
+### Public-facing and administrator-facing feature framing
+
+- Public-facing messaging highlights:
+  - fast status sharing (`ok` / `not_ok`)
+  - codeword-gated status checks
+  - optional one-read burn messages
+  - follow subscriptions for trusted contacts
+- Administrator-facing messaging highlights:
+  - SMTP delivery controls
+  - admin password and admin 2FA management
+  - invitation operations and user-count visibility
+- Root/system-level controls are intentionally excluded from public-facing copy and UI.
+
+### Competitive compare/contrast (category-level USPs)
+
+- Versus tracking-heavy family safety platforms:
+  - PingMe.help emphasizes event-based check-ins rather than continuous location telemetry.
+- Versus generic messaging/chat products:
+  - PingMe.help provides status-specific workflows, codeword-gated access, and one-read burn-message semantics.
+- Versus dead-man-switch-centric tools:
+  - PingMe.help supports proactive user-initiated updates and on-demand follower checks.
