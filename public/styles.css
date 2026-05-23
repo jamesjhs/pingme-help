@@ -209,6 +209,18 @@ textarea {
   gap: 0.9rem;
 }
 
+.tab-descriptions {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.15rem 0 1rem;
+}
+
+.tab-descriptions p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 label {
   display: grid;
   gap: 0.4rem;
@@ -577,8 +589,9 @@ textarea:focus {
 
 .toast-popup {
   position: fixed;
-  right: 1rem;
-  top: 1rem;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 50;
   border: 1px solid var(--border);
   background: var(--card);
@@ -588,6 +601,7 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
+  max-width: min(34rem, calc(100vw - 2rem));
 }
 
 .toast-popup button {
