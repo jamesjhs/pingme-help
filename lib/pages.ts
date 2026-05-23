@@ -28,12 +28,17 @@ function renderLayout({ title, view, content, turnstileSiteKey = '', seo = {} })
   <meta property="og:title" content="${socialTitle}">
   <meta property="og:description" content="${description}">
   <meta property="og:type" content="${socialType}">
+  <meta property="og:site_name" content="PingMe.help">
+  <meta property="og:locale" content="en_GB">
   <meta property="og:url" content="${canonicalUrl}">
   <meta property="og:image" content="${socialImage}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${socialTitle}">
   <meta name="twitter:description" content="${description}">
   <meta name="twitter:image" content="${socialImage}">
+  <link rel="alternate" href="${canonicalUrl}" hreflang="en">
+  <link rel="alternate" href="${canonicalUrl}" hreflang="x-default">
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml">
   <meta name="theme-color" content="#070b12">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -69,6 +74,8 @@ function renderLayout({ title, view, content, turnstileSiteKey = '', seo = {} })
         <button id="footer-share-link" class="text-link-button" type="button">Share PingMe</button>
         <button id="install-app-link" class="text-link-button hidden" type="button">install app</button>
         <a href="/privacy">Privacy Policy</a>
+        <a href="/sitemap.xml">Sitemap</a>
+        <a href="/robots.txt">Robots</a>
       </div>
     </footer>
   </div>

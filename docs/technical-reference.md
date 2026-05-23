@@ -65,6 +65,8 @@
 | `GET` | `/readyz` | Health/readiness metadata |
 | `GET` | `/manifest.webmanifest` | PWA manifest |
 | `GET` | `/sw.js` | Service worker |
+| `GET` | `/robots.txt` | Crawler directives and sitemap pointer |
+| `GET` | `/sitemap.xml` | XML sitemap for indexable public pages |
 | `GET` | `/assets/*` | Static assets |
 
 ### Public POST routes
@@ -293,6 +295,10 @@ Versioned release metadata is surfaced in:
   - canonical URL
   - Open Graph and Twitter summary tags
   - JSON-LD (`SoftwareApplication`) structured data
+- Crawler endpoints are available:
+  - `/robots.txt` with `Sitemap:` directive and `/api/` disallow rule
+  - `/sitemap.xml` listing indexable public pages (`/`, `/privacy`)
+- Non-indexable transactional pages (for example email verification result pages) include `noindex` robots directives.
 - Messaging is written for plain-language search intent around private safety check-ins, trusted-contact status sharing, and emergency context handoff.
 
 ### Public-facing and administrator-facing feature framing

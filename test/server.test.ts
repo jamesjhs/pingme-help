@@ -104,6 +104,28 @@ test('pwa manifest and service worker are served', async () => {
   await close();
 });
 
+test('robots.txt and sitemap.xml are served with indexable public URLs', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
+  const { base, close } = await startServer(makeConfig(tempDir, { serviceName: 'pingme.help' }));
+
+  const robotsResponse = await fetch(`${base}/robots.txt`);
+  const robotsText = await robotsResponse.text();
+  assert.equal(robotsResponse.status, 200);
+  assert.match(robotsText, /User-agent:\s*\*/i);
+  assert.match(robotsText, /Disallow:\s*\/api\//i);
+  assert.match(robotsText, /Sitemap:\s*https:\/\/pingme\.help\/sitemap\.xml/i);
+
+  const sitemapResponse = await fetch(`${base}/sitemap.xml`);
+  const sitemapText = await sitemapResponse.text();
+  assert.equal(sitemapResponse.status, 200);
+  assert.match(sitemapResponse.headers.get('content-type') || '', /application\/xml/i);
+  assert.match(sitemapText, /<urlset/i);
+  assert.match(sitemapText, /<loc>https:\/\/pingme\.help\/<\/loc>/i);
+  assert.match(sitemapText, /<loc>https:\/\/pingme\.help\/privacy<\/loc>/i);
+
+  await close();
+});
+
 test('/api/version returns the current app version', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pingme-help-'));
   const { base, close } = await startServer(makeConfig(tempDir));

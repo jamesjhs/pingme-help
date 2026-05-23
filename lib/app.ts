@@ -213,12 +213,26 @@ function buildEmailVerificationLink(config, requestUrl, username, token) {
   return link.toString();
 }
 
+function buildSitemapXml(origin) {
+  const urls = ['/', '/privacy'];
+  const entries = urls
+    .map((pathname) => `  <url><loc>${escapeHtml(new URL(pathname, origin).toString())}</loc></url>`)
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>`;
+}
+
+function buildRobotsTxt(origin) {
+  const sitemapUrl = new URL('/sitemap.xml', origin).toString();
+  return `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${sitemapUrl}\n`;
+}
+
 function renderEmailVerificationResultPage(success, message) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
   <title>Email verification | pingme.help</title>
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
@@ -526,6 +540,26 @@ function createServer({ config, store }) {
       // a cache-busting reload when the stored version is outdated.
       if (method === 'GET' && url.pathname === '/api/version') {
         sendJson(response, 200, { ok: true, version: config.version });
+        return;
+      }
+
+      if (method === 'GET' && url.pathname === '/sitemap.xml') {
+        const origin = getPublicOrigin(config, url);
+        response.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+        response.setHeader('X-Content-Type-Options', 'nosniff');
+        response.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+        response.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8' });
+        response.end(buildSitemapXml(origin));
+        return;
+      }
+
+      if (method === 'GET' && url.pathname === '/robots.txt') {
+        const origin = getPublicOrigin(config, url);
+        response.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+        response.setHeader('X-Content-Type-Options', 'nosniff');
+        response.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+        response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        response.end(buildRobotsTxt(origin));
         return;
       }
 

@@ -15,6 +15,7 @@ Current application version: `v0.5.0`
 - User dashboard for status updates, codeword management, invites, password changes, and account deletion.
 - Admin dashboard for SMTP configuration, invite sending, and admin 2FA.
 - Encrypted SQLite storage, hardened headers, Turnstile integration, and request-body/input sanitisation.
+- SEO/crawler-ready public pages with canonical/social metadata, JSON-LD, `robots.txt`, and `sitemap.xml`.
 
 ## Public positioning and unique sales points
 
