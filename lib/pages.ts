@@ -67,6 +67,10 @@ function renderHomePage(siteKey) {
           <button class="tab-button" type="button" id="tab-btn-check" data-tab-target="check-panel" role="tab" aria-selected="false" aria-controls="check-panel">Ping a friend</button>
           <button class="tab-button hidden" type="button" id="tab-btn-account" data-tab-target="account-panel" role="tab" aria-selected="false" aria-controls="account-panel">Account</button>
         </div>
+        <div id="user-tab-descriptions" class="tab-descriptions hidden" aria-live="polite">
+          <p><strong>share my status:</strong> let your pingers know you're ok or not, and send them a burner message if you need to. you can see who's pinged you recently, invite others, or suspend or revoke access.</p>
+          <p><strong>ping a friend:</strong> enter your friend's username and their secret codeword to check on their latest status, or if you want to, follow them to always remain updated.</p>
+        </div>
 
         <section id="send-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-send" hidden>
           <div id="send-user-heading" class="hidden">

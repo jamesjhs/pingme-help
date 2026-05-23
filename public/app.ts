@@ -206,6 +206,7 @@
     const tabAccount = document.getElementById('tab-btn-account');
     const sendPanelCodewords = document.getElementById('send-panel-codewords');
     const checkPanelFollows = document.getElementById('check-panel-follows');
+    const userTabDescriptions = document.getElementById('user-tab-descriptions');
     const checkPingForm = document.getElementById('check-ping-form');
     const checkPingFeedback = document.getElementById('check-ping-feedback');
 
@@ -220,6 +221,7 @@
     show(tabAccount, isUser);
     show(sendPanelCodewords, isUser);
     show(checkPanelFollows, isUser);
+    show(userTabDescriptions, isUser);
     show(checkPingForm, !isUser);
     show(checkPingFeedback, !isUser);
     show(siteVerification, !isLoggedIn);
@@ -372,7 +374,10 @@
       }
     }
     document.querySelectorAll('[data-tab-target]').forEach((button) => {
-      button.addEventListener('click', () => activateTab(button.dataset.tabTarget, true));
+      button.addEventListener('click', () => {
+        const allowCollapse = !(currentSession && currentSession.role === 'user');
+        activateTab(button.dataset.tabTarget, allowCollapse);
+      });
     });
     return activateTab;
   }
@@ -457,7 +462,7 @@
     const isFollowing = Array.from(list.querySelectorAll('li')).some((row) => {
       return row.dataset.username === targetUser && row.dataset.codeword === targetCodeword;
     });
-    toggleButton.textContent = isFollowing ? 'Unfollow' : 'Follow';
+    toggleButton.textContent = isFollowing ? 'Unsubscribe' : 'Follow';
   }
 
   function setFollowsStatusCard({ username, status, lastUpdated }) {
@@ -537,7 +542,7 @@
       const unfollowButton = document.createElement('button');
       unfollowButton.type = 'button';
       unfollowButton.className = 'destructive-button';
-      unfollowButton.textContent = 'Unfollow';
+      unfollowButton.textContent = 'Unsubscribe';
       unfollowButton.addEventListener('click', async () => {
         if (!currentSession) {
           return;
@@ -681,6 +686,15 @@
     document.getElementById('topbar-username-link')?.addEventListener('click', (event) => {
       event.preventDefault();
       activateTab('account-panel', false);
+      document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    document.querySelector('.brand')?.addEventListener('click', (event) => {
+      if (!currentSession || currentSession.role !== 'user') {
+        return;
+      }
+      event.preventDefault();
+      activateTab('send-panel', false);
       document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
@@ -1281,7 +1295,7 @@
           const id = Number(match.dataset.followId || 0);
           const data = await postJson('/api/user/follows/remove', { sessionToken: currentSession.sessionToken, id });
           setFollowsList(data.follows || []);
-          setMessage(followsFeedback, 'Unfollowed.', 'success');
+          setMessage(followsFeedback, 'Unsubscribed.', 'success');
         } else {
           const data = await postJson('/api/user/follows/add', {
             sessionToken: currentSession.sessionToken,
