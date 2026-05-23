@@ -372,15 +372,6 @@ function renderHomePage(siteKey) {
               <li>Register, reset passwords, and secure accounts with optional email 2FA.</li>
             </ul>
           </section>
-          <section class="pitch-subcard" aria-label="Administrator features">
-            <h3>Administrator features</h3>
-            <ul>
-              <li>Manage SMTP delivery settings for verification, reset, and invite emails.</li>
-              <li>Enable and maintain admin 2FA and rotate admin passwords safely.</li>
-              <li>Track total registered users and send invitations from one dashboard.</li>
-              <li>Root-level system controls are intentionally excluded from this public interface.</li>
-            </ul>
-          </section>
         </div>
         <section class="pitch-compare" aria-label="Competitive comparison">
           <h3>How PingMe.help compares</h3>
